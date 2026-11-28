@@ -173,6 +173,7 @@ const MODULES = [
   ['confluence.js', read('confluence.js')],
   ['strategy.js', read('strategy.js')],
   ['chart.js', read('chart.js')],
+  ['backtest.js', read('backtest.js')],
   ['replay.js', read('replay.js')],
   ['alerts.js', read('alerts.js')],
   ['symbols.js', read('symbols.js')],

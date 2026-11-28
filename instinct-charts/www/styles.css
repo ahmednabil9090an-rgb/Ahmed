@@ -625,6 +625,93 @@ button.wide {
   border-radius: 7px;
 }
 
+/* ============ لوحة القرب ونسب التحقّق ============ */
+.expect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.expect .prox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--panel-2);
+  border-radius: 9px;
+  padding: 9px 10px;
+  border-inline-start: 3px solid var(--line);
+}
+.expect .prox.now {
+  border-inline-start-color: var(--up);
+}
+.expect .prox.near {
+  border-inline-start-color: var(--gold);
+}
+.expect .prox .big {
+  font-size: 13px;
+  font-weight: 700;
+}
+.expect .prox .sub {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+  margin-top: 1px;
+}
+
+.expect .trow {
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 7px 9px;
+}
+.expect .trow .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.expect .trow .name {
+  font-size: 12px;
+  font-weight: 600;
+}
+.expect .trow .range {
+  font-size: 13px;
+  font-weight: 700;
+  direction: ltr;
+}
+.expect .trow .meta {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.expect .trow .hitbar {
+  height: 5px;
+  background: var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+.expect .trow .hitbar i {
+  display: block;
+  height: 100%;
+  background: var(--up);
+}
+.expect .trow .pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--up);
+}
+.expect .trow .pct.weak {
+  color: var(--muted);
+}
+
+.expect .caveat {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.65;
+  border-top: 1px dashed var(--line);
+  padding-top: 6px;
+}
+
 /* ============ لوحة السيولة ============ */
 .liq {
   display: flex;

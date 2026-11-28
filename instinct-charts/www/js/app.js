@@ -12,6 +12,7 @@ import {
 import { analyze } from './ict.js';
 import { findConfluence } from './confluence.js';
 import { analyzeLiquidity, formatActivity, compactNumber } from './liquidity.js';
+import { backtestPlan, proximityLabel, MIN_SAMPLE } from './backtest.js';
 import { buildPlan, roundPrice, labelBias } from './strategy.js';
 import { ChartManager, renderSubPanes, renderPriceOverlays } from './chart.js';
 import * as Ind from './indicators.js';
@@ -99,6 +100,7 @@ const state = {
   ]),
   confluence: { supports: [], resistances: [], all: [] },
   liquidity: { ok: false },
+  backtest: { ok: false },
   theme: load('theme', 'dark'),
   watchlist: load('watchlist', DEFAULT_WATCHLIST),
   lastPrice: null,
@@ -531,6 +533,20 @@ function recompute(bars, { light = false } = {}) {
   if (state.tf === '1d' || state.tf === '1wk') htfForPlan[state.tf] = state.analysis;
 
   state.plan = buildPlan(bars, state.analysis, htfForPlan, state.confluence);
+
+  // نحسبه مرة واحدة لكل أداة وفريم: المرور على التاريخ كله ليس رخيصًا،
+  // ولا يتغيّر بتغيّر الشمعة الأخيرة تغيّرًا يُذكر.
+  if (!light) {
+    const key = `${state.symbol}|${state.tf}|${bars.length}`;
+    if (state.backtestKey !== key) {
+      state.backtestKey = key;
+      try {
+        state.backtest = backtestPlan(bars);
+      } catch (err) {
+        state.backtest = { ok: false, reason: 'تعذّر الاختبار التاريخي' };
+      }
+    }
+  }
   drawAnalysisLayers();
   renderAnalysisPanel();
   if (!light) drawIndicators();
@@ -792,9 +808,25 @@ function drawAnalysisLayers() {
       cm.addPriceLine({ price: e.early, color: '#f59e0b', title: 'مبكر', dashed: true });
     if (plan.stop != null)
       cm.addPriceLine({ price: plan.stop, color: '#e5484d', title: 'وقف', dashed: false });
-    plan.targets.forEach((t, i) =>
-      cm.addPriceLine({ price: t.price, color: '#17b26a', title: `هدف ${i + 1}`, dashed: true })
-    );
+    // الهدف يُرسم كشريط لا كخط: الخروج على مدى أقرب للواقع من سعر بعينه
+    plan.targets.forEach((t, i) => {
+      cm.addPriceLine({ price: t.price, color: '#17b26a', title: `هدف ${i + 1}`, dashed: true });
+      if (t.low != null && t.high != null && t.high > t.low) {
+        const rate = state.backtest?.ok && state.backtest.enough ? state.backtest.targets[i] : null;
+        zones.push({
+          top: t.high,
+          bottom: t.low,
+          fromIndex: Math.max(0, bars.length - 45),
+          toIndex: null,
+          fill: 'rgba(23,178,106,.12)',
+          stroke: 'rgba(23,178,106,.35)',
+          label:
+            `هدف ${i + 1}: ${t.low} – ${t.high}` +
+            (rate && rate.rate != null ? ` · تحقّق ${Math.round(rate.rate * 100)}٪` : ''),
+          labelColor: 'rgba(23,178,106,.95)',
+        });
+      }
+    });
   }
 
   cm.setOverlayData({ zones, lines, labels });
@@ -883,6 +915,7 @@ function renderAnalysisPanel() {
     htf.appendChild(s);
   }
 
+  renderExpectationPanel();
   renderLiquidityPanel();
   renderConfluencePanel();
 
@@ -918,6 +951,146 @@ function renderAnalysisPanel() {
       li.append(a, b);
       ev.appendChild(li);
     });
+}
+
+function renderExpectationPanel() {
+  const el = $('an-expect');
+  el.innerHTML = '';
+  const plan = state.plan;
+  const bt = state.backtest;
+
+  if (!plan || !plan.ok || plan.direction === 'none') {
+    const p = document.createElement('div');
+    p.className = 'none';
+    p.textContent = 'لا توجد خطة قائمة لقياس قربها.';
+    el.appendChild(p);
+    return;
+  }
+
+  /* ---- قرب منطقة الدخول ---- */
+  const d = plan.entryDistance;
+  if (d) {
+    const lab = d.inside ? { text: 'السعر داخل منطقة الدخول الآن', tone: 'now' } : proximityLabel(d.sessions);
+    const box = document.createElement('div');
+    box.className = 'prox ' + (lab?.tone || '');
+    const icon = document.createElement('span');
+    icon.style.fontSize = '18px';
+    icon.textContent = d.inside ? '🎯' : d.sessions <= 4 ? '⏳' : '🕓';
+    const t = document.createElement('div');
+    const b = document.createElement('span');
+    b.className = 'big';
+    b.textContent = lab ? lab.text : '—';
+    const sub = document.createElement('span');
+    sub.className = 'sub';
+    sub.textContent = d.inside
+      ? `منطقة ال${plan.sideWord} ${plan.entries.ideal.bottom} – ${plan.entries.ideal.top}`
+      : `يبعد ${Math.abs(d.pct).toFixed(1)}٪ عن السعر` +
+        (d.sessions != null ? ` · نحو ${d.sessions.toFixed(1)} جلسة بالحركة المعتادة` : '');
+    t.append(b, sub);
+    box.append(icon, t);
+    el.appendChild(box);
+  }
+
+  /* ---- احتمال وصول السعر إلى منطقة الدخول ---- */
+  const enough = bt && bt.ok && bt.enough;
+  if (enough) {
+    const r = bt.entryReach;
+    const box = document.createElement('div');
+    box.className = 'trow';
+    const top = document.createElement('div');
+    top.className = 'top';
+    const nm = document.createElement('span');
+    nm.className = 'name';
+    nm.textContent = 'وصول السعر لمنطقة الدخول';
+    const pct = document.createElement('span');
+    pct.className = 'pct';
+    pct.textContent = Math.round(r.rate * 100) + '٪';
+    top.append(nm, pct);
+    const bar = document.createElement('div');
+    bar.className = 'hitbar';
+    const fill = document.createElement('i');
+    fill.style.width = r.rate * 100 + '%';
+    bar.appendChild(fill);
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent =
+      `${r.count} من ${r.sample} إشارة سابقة` +
+      (r.medianBars != null ? ` · وسيط الانتظار ${r.medianBars} جلسة` : '');
+    box.append(top, bar, meta);
+    el.appendChild(box);
+  }
+
+  /* ---- الأهداف كمديات مع نسبة التحقّق ---- */
+  plan.targets.forEach((t, i) => {
+    const box = document.createElement('div');
+    box.className = 'trow';
+
+    const top = document.createElement('div');
+    top.className = 'top';
+    const nm = document.createElement('span');
+    nm.className = 'name';
+    nm.textContent = `هدف ${i + 1}`;
+    const range = document.createElement('span');
+    range.className = 'range';
+    range.textContent = `${t.low} – ${t.high}`;
+    top.append(nm, range);
+    box.appendChild(top);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent =
+      `${t.distancePct >= 0 ? '+' : ''}${t.distancePct.toFixed(1)}٪ عن السعر` +
+      (t.sessions != null ? ` · نحو ${t.sessions.toFixed(1)} جلسة` : '') +
+      ` · ${t.fromZone ? `منطقة التقاء بقوة ${t.zoneStrength}` : t.label}`;
+    box.appendChild(meta);
+
+    const st = enough ? bt.targets[i] : null;
+    if (st && st.sample >= MIN_SAMPLE && st.rate != null) {
+      const bar = document.createElement('div');
+      bar.className = 'hitbar';
+      const fill = document.createElement('i');
+      fill.style.width = st.rate * 100 + '%';
+      bar.appendChild(fill);
+      const line = document.createElement('div');
+      line.className = 'meta';
+      line.innerHTML =
+        `<span class="pct">${Math.round(st.rate * 100)}٪</span> تحقّق تاريخيًا ` +
+        `(${st.hits} من ${st.sample} دخول)` +
+        (st.medianBars != null ? ` · وسيط ${st.medianBars} جلسة للوصول` : '');
+      box.append(bar, line);
+    }
+    el.appendChild(box);
+  });
+
+  /* ---- خلاصة الاختبار ---- */
+  if (bt && bt.ok) {
+    const sum = document.createElement('div');
+    sum.className = 'trow';
+    if (bt.enough) {
+      const bits = [`${bt.setups} إشارة مُختبرة`];
+      if (bt.stopFirst.rate != null)
+        bits.push(`الوقف أولًا في ${Math.round(bt.stopFirst.rate * 100)}٪`);
+      if (bt.expectancyR != null)
+        bits.push(`متوسط العائد ${bt.expectancyR.toFixed(2)} ضعف المخاطرة`);
+      sum.innerHTML = `<div class="meta">${bits.join(' · ')}</div>`;
+    } else {
+      sum.innerHTML = `<div class="meta">الإشارات السابقة أقل من ${MIN_SAMPLE}، والنسب تحتها لا تعني شيئًا فأُخفيت.</div>`;
+    }
+    el.appendChild(sum);
+  } else if (bt && bt.reason) {
+    const p = document.createElement('div');
+    p.className = 'meta';
+    p.textContent = bt.reason;
+    el.appendChild(p);
+  }
+
+  const cav = document.createElement('div');
+  cav.className = 'caveat';
+  cav.textContent =
+    'النسب مقيسة على تاريخ هذه الأداة بنفس قواعد الخطة، ومتابَعة ' +
+    `${(bt && bt.lookahead) || 60} جلسة بعد كل إشارة. القواعد صيغت بعد رؤية هذا التاريخ ` +
+    'فالنتيجة متفائلة بطبعها، والماضي لا يضمن المستقبل.';
+  el.appendChild(cav);
 }
 
 function renderLiquidityPanel() {

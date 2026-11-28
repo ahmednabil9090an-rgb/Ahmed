@@ -7,5 +7,6 @@ await import('./indicators.test.mjs');
 await import('./ict.test.mjs');
 await import('./volume-profile.test.mjs');
 await import('./liquidity.test.mjs');
+await import('./backtest.test.mjs');
 
 process.exit(report() === 0 ? 0 : 1);

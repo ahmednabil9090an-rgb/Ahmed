@@ -154,7 +154,7 @@ export function buildPlan(bars, A, htf = {}, conf = null) {
 
   // ترتيب وإزالة المكرر
   const seen = new Set();
-  const finalTargets = targets
+  const picked = targets
     .filter((t) => t.price != null && isFinite(t.price))
     .sort((a, b) => (isLong ? a.price - b.price : b.price - a.price))
     .filter((t) => {
@@ -164,6 +164,25 @@ export function buildPlan(bars, A, htf = {}, conf = null) {
       return true;
     })
     .slice(0, 3);
+
+  // الهدف منطقة لا نقطة: السعر نادرًا ما يقف عند رقم بعينه، والخروج
+  // على مدى أقرب للواقع من انتظار سعر محدد. نأخذ المدى من منطقة التقاء
+  // تحتضن الهدف إن وُجدت، وإلا فهامش من المدى الحقيقي.
+  const confFar = conf ? (isLong ? conf.resistances : conf.supports) : [];
+  const finalTargets = picked.map((t) => {
+    const zone = confFar.find((z) => t.price >= z.low && t.price <= z.high);
+    const pad = atrNow * 0.3;
+    const low = zone ? zone.low : t.price - pad;
+    const high = zone ? zone.high : t.price + pad;
+    return {
+      ...t,
+      price: t.price,
+      low: Math.min(low, high),
+      high: Math.max(low, high),
+      fromZone: !!zone,
+      zoneStrength: zone ? zone.strength : null,
+    };
+  });
 
   /* -------------------------------------------------- */
   /* نسب المخاطرة/العائد                                  */
@@ -277,7 +296,23 @@ export function buildPlan(bars, A, htf = {}, conf = null) {
     },
     equilibrium: A.impulse ? roundPrice(A.impulse.equilibrium) : null,
     stop: roundPrice(stop),
-    targets: finalTargets.map((t) => ({ ...t, price: roundPrice(t.price) })),
+    targets: finalTargets.map((t) => ({
+      ...t,
+      price: roundPrice(t.price),
+      low: roundPrice(t.low),
+      high: roundPrice(t.high),
+      // بُعد الهدف عن السعر: بالنسبة المئوية وبعدد جلسات الحركة المعتادة
+      distancePct: ((t.price - price) / price) * 100,
+      sessions: atrNow ? Math.abs(t.price - price) / atrNow : null,
+    })),
+    // بُعد منطقة الدخول — يجيب سؤال «هل الصفقة قريبة؟»
+    entryDistance: ideal
+      ? {
+          pct: ((idealMid - price) / price) * 100,
+          sessions: atrNow ? Math.abs(idealMid - price) / atrNow : null,
+          inside: price <= Math.max(ideal.top, ideal.bottom) && price >= Math.min(ideal.top, ideal.bottom),
+        }
+      : null,
     rr: {
       early: rrFor(early),
       ideal: rrFor(idealMid),
