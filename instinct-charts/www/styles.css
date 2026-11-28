@@ -626,6 +626,58 @@ button.wide {
 }
 
 /* ============ ماسح الفرص ============ */
+.seg {
+  display: flex;
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+.seg button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 6px 4px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.seg button.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.op.real {
+  border-inline-start: 3px solid var(--gold);
+}
+.op .zoneline {
+  font-size: 10.5px;
+  color: var(--gold);
+  margin-top: 4px;
+  line-height: 1.6;
+}
+.op .zoneline b {
+  color: var(--gold);
+}
+.op .factors {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.scan-empty {
+  padding: 16px 14px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.scan-empty b {
+  color: var(--text);
+  display: block;
+  margin-bottom: 4px;
+}
+
 .scan-head {
   padding: 9px 10px;
   border-bottom: 1px solid var(--line);

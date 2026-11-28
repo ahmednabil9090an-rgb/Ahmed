@@ -103,6 +103,7 @@ const state = {
   liquidity: { ok: false },
   backtest: { ok: false },
   scanRows: [],
+  scanMode: 'real',
   theme: load('theme', 'dark'),
   watchlist: load('watchlist', DEFAULT_WATCHLIST),
   lastPrice: null,
@@ -963,7 +964,7 @@ let scanAbort = null;
 
 function opportunityRow(r) {
   const el = document.createElement('div');
-  el.className = 'op';
+  el.className = 'op' + (r.isReal ? ' real' : '');
   el.onclick = () => selectSymbol(r.symbol);
 
   const r1 = document.createElement('div');
@@ -998,6 +999,23 @@ function opportunityRow(r) {
     part('stop', 'وقف ', String(r.stop))
   );
 
+  el.append(r1, deal);
+
+  if (r.zone && r.tradeFromZone) {
+    const zl = document.createElement('div');
+    zl.className = 'zoneline';
+    zl.innerHTML =
+      `واقف عند ${r.direction === 'long' ? 'دعم' : 'مقاومة'} ` +
+      `<b>${r.zone.low.toFixed(r.zone.low < 1 ? 4 : 2)} – ${r.zone.high.toFixed(r.zone.high < 1 ? 4 : 2)}</b>` +
+      ` · قوة <b>${r.zone.strength}</b> · <b>${r.zone.factors}</b> عوامل` +
+      ` · ارتدّ <b>${r.zone.bounces}</b> من <b>${r.zone.touches}</b>`;
+    el.appendChild(zl);
+    const f = document.createElement('div');
+    f.className = 'factors';
+    f.textContent = r.zone.topFactors.join(' · ');
+    el.appendChild(f);
+  }
+
   const r3 = document.createElement('div');
   r3.className = 'r3';
   const bits = [];
@@ -1009,7 +1027,7 @@ function opportunityRow(r) {
   if (r.hitRate != null) bits.push(`تحقّق <b>${Math.round(r.hitRate * 100)}٪</b>`);
   r3.innerHTML = bits.join(' · ');
 
-  el.append(r1, deal, r3);
+  el.appendChild(r3);
   return el;
 }
 
@@ -1017,22 +1035,30 @@ function renderScanList() {
   const el = $('scan-list');
   el.innerHTML = '';
   const rows = state.scanRows || [];
+  const mode = state.scanMode || 'real';
   const wantBuy = $('scan-buy').checked;
   const wantSell = $('scan-sell').checked;
   const nearOnly = $('scan-near').checked;
 
   const filtered = rows
+    .filter((r) => (mode === 'real' ? r.isReal : true))
     .filter((r) => (r.direction === 'long' ? wantBuy : wantSell))
     .filter((r) => !nearOnly || r.inside || (r.sessions != null && r.sessions <= 4))
-    .sort(SORTS[$('scan-sort').value || 'nearest'].fn);
+    .sort(SORTS[$('scan-sort').value || 'quality'].fn);
 
   if (!filtered.length) {
     const p = document.createElement('div');
-    p.className = 'muted small';
-    p.style.padding = '14px';
-    p.textContent = rows.length
-      ? 'لا توجد فرص تطابق هذه التصفية.'
-      : 'اضغط «افحص كل الأسهم» لعرض صفقة كل أداة في سطر.';
+    p.className = 'scan-empty';
+    if (!rows.length) {
+      p.innerHTML = '<b>اضغط «افحص كل الأسهم»</b>يعرض صفقة كل أداة في سطر واحد.';
+    } else if (mode === 'real') {
+      p.innerHTML =
+        '<b>لا توجد فرص مكتملة الشروط الآن.</b>' +
+        'لا يوجد سهم واقف هذه اللحظة عند مستوى قوي وسبق أن ارتدّ منه أكثر مما كُسر. ' +
+        'هذه إجابة صحيحة لا خلل — اضغط «كل الخطط» لرؤية الخطط النظرية التي تنتظر عودة السعر.';
+    } else {
+      p.innerHTML = '<b>لا توجد فرص تطابق هذه التصفية.</b>جرّب إلغاء «القريبة فقط».';
+    }
     el.appendChild(p);
     return;
   }
@@ -1070,7 +1096,8 @@ async function runScan() {
     if (ctrl.signal.aborted) return;
     state.scanRows = rows;
     renderScanList();
-    toast(`اكتمل الفحص: ${rows.length} فرصة من ${items.length} أداة`);
+    const realCount = rows.filter((r) => r.isReal).length;
+    toast(`اكتمل الفحص: ${realCount} فرصة حقيقية · ${rows.length} خطة من ${items.length} أداة`);
   } catch (err) {
     toast('تعذّر إكمال الفحص: ' + (err.message || err));
   } finally {
@@ -1089,7 +1116,15 @@ function setupScanner() {
     o.textContent = v.label;
     sel.appendChild(o);
   });
+  sel.value = 'quality';
   sel.onchange = renderScanList;
+  $('scan-mode').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    state.scanMode = b.dataset.mode;
+    document.querySelectorAll('#scan-mode button').forEach((x) => x.classList.toggle('active', x === b));
+    renderScanList();
+  });
   ['scan-buy', 'scan-sell', 'scan-near'].forEach((id) => ($(id).onchange = renderScanList));
   $('scan-run').onclick = runScan;
   renderScanList();
