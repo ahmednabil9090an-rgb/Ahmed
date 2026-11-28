@@ -1,0 +1,97 @@
+# يبني تطبيق الآيفون على جهاز Mac تابع لـ GitHub — فلا تحتاج ماك عندك.
+#
+# الناتج ملف ipa غير موقَّع، تنزّله من صفحة التشغيل ثم تثبّته على جهازك
+# ببرنامج Sideloadly أو AltStore باستخدام حساب Apple المجاني.
+#
+# التشغيل: تبويب Actions في المستودع ← هذا السير ← Run workflow
+#
+# ⚠️ أجهزة الماك في GitHub تُحتسب بعشرة أضعاف دقائق لينكس. المستودعات
+#    العامة مجانية بلا حدود، أما الخاصة فلها 2000 دقيقة شهريًا، أي أن بناءً
+#    مدته 10 دقائق يستهلك 100 دقيقة من رصيدك.
+
+name: بناء تطبيق آيفون (ipa غير موقَّع)
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: نوع البناء
+        type: choice
+        options: [Debug, Release]
+        default: Release
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: instinct-charts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: تثبيت الاعتماديات
+        run: npm ci
+
+      - name: نسخ ملفات الواجهة إلى مشروع iOS
+        run: npx cap sync ios
+
+      - name: عرض نسخة Xcode المستخدمة
+        run: xcodebuild -version
+
+      - name: البناء بدون توقيع
+        working-directory: instinct-charts/ios/App
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration ${{ inputs.configuration }} \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_BITCODE=NO \
+            build | xcpretty || xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration ${{ inputs.configuration }} \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_BITCODE=NO \
+            build
+
+      - name: تغليف الناتج في ملف ipa
+        working-directory: instinct-charts/ios/App
+        run: |
+          APP_PATH="build/Build/Products/${{ inputs.configuration }}-iphoneos/App.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "لم يُعثر على التطبيق المبني في $APP_PATH"
+            find build/Build/Products -maxdepth 3 -name "*.app" || true
+            exit 1
+          fi
+          mkdir -p output/Payload
+          cp -R "$APP_PATH" output/Payload/
+          cd output
+          zip -qry instinct-charts-unsigned.ipa Payload
+          rm -rf Payload
+          ls -lh instinct-charts-unsigned.ipa
+
+      - name: رفع الملف كأثر قابل للتنزيل
+        uses: actions/upload-artifact@v4
+        with:
+          name: instinct-charts-ios-unsigned
+          path: instinct-charts/ios/App/output/instinct-charts-unsigned.ipa
+          retention-days: 14
+          if-no-files-found: error

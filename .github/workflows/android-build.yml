@@ -1,0 +1,47 @@
+# يبني تطبيق أندرويد ويخرج ملف APK جاهزًا للتثبيت على الهاتف مباشرة.
+# التشغيل: تبويب Actions في المستودع ← هذا السير ← Run workflow
+
+name: بناء تطبيق أندرويد (APK)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: instinct-charts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: تثبيت الاعتماديات
+        run: npm ci
+
+      - name: نسخ ملفات الواجهة إلى مشروع أندرويد
+        run: npx cap sync android
+
+      - name: البناء
+        working-directory: instinct-charts/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: رفع الملف كأثر قابل للتنزيل
+        uses: actions/upload-artifact@v4
+        with:
+          name: instinct-charts-android
+          path: instinct-charts/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error
