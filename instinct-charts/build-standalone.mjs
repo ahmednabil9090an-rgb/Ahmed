@@ -217,8 +217,8 @@ async function grab(symbol, tf, keep) {
 
 console.log(`جلب لقطة لـ ${symbols.length} أداة...`);
 for (const s of symbols) {
-  await grab(s, '1d', 600);
-  await grab(s, '1wk', 300);
+  await grab(s, '1d', 420);
+  await grab(s, '1wk', 220);
   // الفريمات الداخلية حقيقية للمعادن فقط
   if (/=F$/.test(s) || s === 'COPA.L') {
     await grab(s, '1h', 500);
