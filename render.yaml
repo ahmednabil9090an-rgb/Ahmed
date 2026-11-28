@@ -1,0 +1,16 @@
+# نشر بضغطة واحدة على Render — الباقة المجانية تكفي هذا التطبيق.
+#
+# الخطوات: ادخل render.com ← New ← Blueprint ← اختر هذا المستودع.
+# سيقرأ هذا الملف وينشئ الخدمة تلقائيًا، ويعطيك رابطًا دائمًا
+# تفتحه من الآيفون وتضيفه إلى الشاشة الرئيسية.
+
+services:
+  - type: web
+    name: instinct-charts
+    runtime: docker
+    rootDir: instinct-charts
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    autoDeploy: true
