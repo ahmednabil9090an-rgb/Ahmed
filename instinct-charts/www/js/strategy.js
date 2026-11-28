@@ -139,7 +139,7 @@ export function buildPlan(bars, A, htf = {}, conf = null) {
     .sort((a, b) => (isLong ? a.price - b.price : b.price - a.price))
     .slice(0, 2)
     .forEach((l, i) =>
-      targets.push({ price: l.price, label: `سيولة ${i + 1}`, note: `${l.touches} لمسات` })
+      targets.push({ price: l.price, label: `تجمّع أوامر ${i + 1}`, note: `${l.touches} لمسات` })
     );
 
   const oppositePivot = (isLong ? A.swings.highs : A.swings.lows)

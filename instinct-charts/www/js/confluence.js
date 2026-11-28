@@ -18,7 +18,7 @@ export const CATEGORY_LABEL = {
   fib: 'فيبوناتشي',
   ma: 'متوسط متحرك',
   pivot: 'قمة/قاع سابق',
-  liquidity: 'سيولة',
+  liquidity: 'تجمّع أوامر',
   fvg: 'فجوة قيمة عادلة',
   ob: 'منطقة أوامر',
   volume: 'كثافة تداول',
@@ -184,7 +184,7 @@ export function collectLevels(bars, A, { intraday = false } = {}) {
 
   /* مناطق السيولة */
   A.liquidity.forEach((l) => {
-    push(l.price, 'liquidity', `سيولة (${l.touches} لمسات)`, 10 + Math.min(l.touches, 4) * 2);
+    push(l.price, 'liquidity', `تجمّع أوامر (${l.touches} لمسات)`, 10 + Math.min(l.touches, 4) * 2);
   });
 
   /* فجوات القيمة العادلة غير المردومة — الحافة والمنتصف */

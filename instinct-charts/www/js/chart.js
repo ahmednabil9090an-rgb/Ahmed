@@ -5,6 +5,7 @@
  */
 
 import * as I from './indicators.js';
+import { turnoverSeries, obv, moneyFlowIndex, turnoverUnit } from './liquidity.js';
 
 const LWC = window.LightweightCharts;
 
@@ -446,9 +447,70 @@ export function renderSubPanes(cm, bars, active) {
   // حتى تبقى نافذة السعر هي الأكبر.
   const narrow = window.innerWidth <= 820;
   const maxPanes = narrow ? (window.innerHeight >= 760 ? 2 : 1) : 4;
-  const order = ['volume', 'rsi', 'macd', 'wt'];
+  const order = ['liquidity', 'obv', 'mfi', 'volume', 'rsi', 'macd', 'wt'];
   const shown = new Set(order.filter((id) => active.has(id)).slice(0, maxPanes));
   const h = (full) => (narrow ? 74 : full);
+
+  /* السيولة: قيمة التداول لكل شمعة ومتوسطها — يرى المتداول فورًا
+     إن كانت الأموال تتدفّق على الأداة أم تنسحب منها */
+  if (shown.has('liquidity')) {
+    const unit = turnoverUnit(cm.symbol);
+    const pane = cm.addSubPane(
+      'liquidity',
+      unit === 'currency' ? 'السيولة — قيمة التداول' : 'السيولة — عدد العقود',
+      h(92)
+    );
+    const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+    pane.chart.applyOptions({ localization: { priceFormatter: (v) => compact.format(v) } });
+
+    const activity = unit === 'currency' ? turnoverSeries(bars) : bars.map((b) => b.volume || 0);
+    const hist = pane.chart.addHistogramSeries({ priceLineVisible: false });
+    hist.setData(
+      bars.map((b, i) => ({
+        time: b.time,
+        value: activity[i],
+        color: b.close >= b.open ? 'rgba(23,178,106,.6)' : 'rgba(229,72,77,.6)',
+      }))
+    );
+    const avg = I.sma(activity, 20);
+    const line = pane.chart.addLineSeries({
+      color: '#e0b341',
+      lineWidth: 1.6,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    line.setData(bars.map((b, i) => ({ time: b.time, value: avg[i] })).filter((p) => p.value != null));
+    pane.series.push(hist, line);
+  }
+
+  /* الرصيد الحجمي التراكمي: اتجاهه يكشف التجميع أو التصريف */
+  if (shown.has('obv')) {
+    const pane = cm.addSubPane('obv', 'تدفّق السيولة التراكمي (OBV)', h(88));
+    const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+    pane.chart.applyOptions({ localization: { priceFormatter: (v) => compact.format(v) } });
+    const vals = obv(bars);
+    const line = pane.chart.addLineSeries({ color: '#38bdf8', lineWidth: 1.8, priceLineVisible: false });
+    line.setData(bars.map((b, i) => ({ time: b.time, value: vals[i] })));
+    pane.series.push(line);
+  }
+
+  /* مؤشر تدفّق الأموال: مثل RSI لكنه موزون بالحجم */
+  if (shown.has('mfi')) {
+    const pane = cm.addSubPane('mfi', 'مؤشر تدفّق الأموال (MFI)', h(90));
+    const vals = moneyFlowIndex(bars, 14);
+    const line = pane.chart.addLineSeries({ color: '#34d399', lineWidth: 1.6, priceLineVisible: false });
+    line.setData(bars.map((b, i) => ({ time: b.time, value: vals[i] })).filter((p) => p.value != null));
+    [20, 50, 80].forEach((lvl) =>
+      line.createPriceLine({
+        price: lvl,
+        color: lvl === 50 ? t.border : '#34d39955',
+        lineWidth: 1,
+        lineStyle: 2,
+        axisLabelVisible: false,
+      })
+    );
+    pane.series.push(line);
+  }
 
   if (shown.has('volume')) {
     const pane = cm.addSubPane('volume', 'الأحجام', h(90));

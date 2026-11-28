@@ -625,6 +625,123 @@ button.wide {
   border-radius: 7px;
 }
 
+/* ============ لوحة السيولة ============ */
+.liq {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.liq .headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border-radius: 9px;
+  padding: 9px 10px;
+  border-inline-start: 3px solid var(--line);
+}
+.liq .headline.up {
+  border-inline-start-color: var(--up);
+}
+.liq .headline.down {
+  border-inline-start-color: var(--down);
+}
+.liq .headline .arrow {
+  font-size: 19px;
+  line-height: 1;
+}
+.liq .headline .txt b {
+  display: block;
+  font-size: 13px;
+}
+.liq .headline .txt span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.liq .grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.liq .cell {
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 7px 9px;
+}
+.liq .cell .k {
+  font-size: 10.5px;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 2px;
+}
+.liq .cell .v {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* شريط يوازن بين الأموال الداخلة والخارجة */
+.liq .flowbar {
+  display: flex;
+  height: 9px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.liq .flowbar i {
+  display: block;
+  height: 100%;
+}
+.liq .flowbar .in {
+  background: var(--up);
+}
+.liq .flowbar .out {
+  background: var(--down);
+}
+.liq .flowlabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.liq .verdict {
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.liq .verdict b {
+  display: block;
+  margin-bottom: 2px;
+}
+.liq .verdict.good b {
+  color: var(--up);
+}
+.liq .verdict.bad b {
+  color: var(--down);
+}
+
+.liq .bigday {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  padding: 4px 2px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.liq .none {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.7;
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
 .hint {
   font-size: 10.5px;
   color: var(--muted);

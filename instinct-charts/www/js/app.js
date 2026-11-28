@@ -11,6 +11,7 @@ import {
 } from './symbols.js';
 import { analyze } from './ict.js';
 import { findConfluence } from './confluence.js';
+import { analyzeLiquidity, formatActivity, compactNumber } from './liquidity.js';
 import { buildPlan, roundPrice, labelBias } from './strategy.js';
 import { ChartManager, renderSubPanes, renderPriceOverlays } from './chart.js';
 import * as Ind from './indicators.js';
@@ -43,7 +44,7 @@ const LAYERS = [
   { id: 'ote', label: 'منطقة OTE' },
   { id: 'ob', label: 'مناطق الأوامر' },
   { id: 'structure', label: 'MSS / BOS' },
-  { id: 'liquidity', label: 'السيولة' },
+  { id: 'orderpools', label: 'تجمّعات أوامر (قمم/قيعان)' },
   { id: 'plan', label: 'مستويات الخطة' },
 ];
 
@@ -68,7 +69,10 @@ function loadSet(key, allIds, defaults) {
   return set;
 }
 
-const INDICATOR_IDS = ['ema20', 'ema50', 'ema200', 'bb', 'vwap', 'volume', 'rsi', 'macd', 'wt'];
+const INDICATOR_IDS = [
+  'ema20', 'ema50', 'ema200', 'bb', 'vwap',
+  'liquidity', 'obv', 'mfi', 'volume', 'rsi', 'macd', 'wt',
+];
 
 const state = {
   symbol: load('symbol', 'COMI.CA'),
@@ -82,9 +86,8 @@ const state = {
     'ema20',
     'ema50',
     'ema200',
-    'volume',
+    'liquidity',
     'rsi',
-    'wt',
   ]),
   // المناطق المعروضة افتراضيًا — الباقي يُفعّل من لوحة «طبقات الرسم»
   layers: loadSet('layers', LAYERS.map((l) => l.id), [
@@ -95,6 +98,7 @@ const state = {
     'plan',
   ]),
   confluence: { supports: [], resistances: [], all: [] },
+  liquidity: { ok: false },
   theme: load('theme', 'dark'),
   watchlist: load('watchlist', DEFAULT_WATCHLIST),
   lastPrice: null,
@@ -197,7 +201,10 @@ function buildIndicatorMenu() {
     { id: 'ema200', label: 'متوسط أسي 200' },
     { id: 'bb', label: 'بولينجر باند' },
     { id: 'vwap', label: 'VWAP' },
-    { id: 'volume', label: 'الأحجام' },
+    { id: 'liquidity', label: 'السيولة — قيمة التداول' },
+    { id: 'obv', label: 'تدفّق السيولة التراكمي (OBV)' },
+    { id: 'mfi', label: 'مؤشر تدفّق الأموال (MFI)' },
+    { id: 'volume', label: 'الأحجام (عدد)' },
     { id: 'rsi', label: 'RSI' },
     { id: 'macd', label: 'MACD' },
     { id: 'wt', label: 'WaveTrend' },
@@ -420,6 +427,7 @@ async function loadSymbol() {
 
     state.bars = data.bars;
     state.meta = data.meta;
+    cm.symbol = state.symbol;
     state.offline = !!data.offline;
     state.cachedAt = data.cachedAt || null;
 
@@ -512,6 +520,10 @@ function recompute(bars, { light = false } = {}) {
   state.analysis = analyze(bars);
   state.confluence = findConfluence(bars, state.analysis, {
     intraday: INTRADAY_TFS.has(state.tf),
+  });
+  state.liquidity = analyzeLiquidity(bars, {
+    symbol: state.symbol,
+    currency: state.meta?.currency,
   });
 
   // الفريم الحالي يُحتسب ضمن أطر التأكيد إن كان يوميًا أو أسبوعيًا
@@ -743,7 +755,7 @@ function drawAnalysisLayers() {
   cm.setMarkers(markers);
 
   /* --- السيولة --- */
-  if (state.layers.has('liquidity')) {
+  if (state.layers.has('orderpools')) {
     A.liquidity.slice(-4).forEach((l) => {
       lines.push({
         price: l.price,
@@ -751,7 +763,7 @@ function drawAnalysisLayers() {
         toIndex: null,
         color: l.type === 'buyside' ? 'rgba(229,72,77,.55)' : 'rgba(23,178,106,.55)',
         dashed: true,
-        label: l.type === 'buyside' ? 'سيولة أعلى' : 'سيولة أسفل',
+        label: l.type === 'buyside' ? 'أوامر معلّقة أعلى' : 'أوامر معلّقة أسفل',
         labelAt: 'end',
       });
     });
@@ -871,6 +883,7 @@ function renderAnalysisPanel() {
     htf.appendChild(s);
   }
 
+  renderLiquidityPanel();
   renderConfluencePanel();
 
   /* قائمة التحقق */
@@ -905,6 +918,146 @@ function renderAnalysisPanel() {
       li.append(a, b);
       ev.appendChild(li);
     });
+}
+
+function renderLiquidityPanel() {
+  const el = $('an-liquidity');
+  el.innerHTML = '';
+  const L = state.liquidity;
+
+  if (!L || !L.ok) {
+    const p = document.createElement('div');
+    p.className = 'none';
+    p.textContent = (L && L.reason) || 'تحليل السيولة غير متاح.';
+    el.appendChild(p);
+    return;
+  }
+
+  const fmt = (v) => formatActivity(v, L.unit, L.currency);
+
+  /* العنوان: هل السيولة تزيد أم تنقص؟ */
+  const head = document.createElement('div');
+  head.className =
+    'headline ' + (L.trend.direction === 'up' ? 'up' : L.trend.direction === 'down' ? 'down' : '');
+  const arrow = document.createElement('span');
+  arrow.className = 'arrow ' + (L.trend.direction === 'up' ? 'up' : L.trend.direction === 'down' ? 'down' : 'muted');
+  arrow.textContent = L.trend.direction === 'up' ? '▲' : L.trend.direction === 'down' ? '▼' : '■';
+  const txt = document.createElement('div');
+  txt.className = 'txt';
+  const b = document.createElement('b');
+  b.textContent = L.trend.label;
+  const sp = document.createElement('span');
+  sp.textContent =
+    `آخر 5 جلسات ${L.trend.pct5v20 >= 0 ? '+' : ''}${L.trend.pct5v20.toFixed(0)}٪ ` +
+    `مقابل متوسط 20 جلسة · والعشرون ${L.trend.pct20v60 >= 0 ? '+' : ''}${L.trend.pct20v60.toFixed(0)}٪ مقابل الستين`;
+  txt.append(b, sp);
+  head.append(arrow, txt);
+  el.appendChild(head);
+
+  /* أرقام أساسية */
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  const cell = (k, v, cls) => {
+    const d = document.createElement('div');
+    d.className = 'cell';
+    const kk = document.createElement('span');
+    kk.className = 'k';
+    kk.textContent = k;
+    const vv = document.createElement('span');
+    vv.className = 'v ' + (cls || '');
+    vv.textContent = v;
+    d.append(kk, vv);
+    grid.appendChild(d);
+  };
+
+  cell('تداول آخر جلسة', fmt(L.today));
+  cell(
+    'مقابل المتوسط',
+    `${L.todayVsAvgPct >= 0 ? '+' : ''}${L.todayVsAvgPct.toFixed(0)}٪`,
+    L.todayVsAvgPct >= 0 ? 'up' : 'down'
+  );
+  cell('متوسط 20 جلسة', fmt(L.avg20));
+  cell('متوسط 60 جلسة', fmt(L.avg60));
+  if (L.cmf != null)
+    cell('تدفّق تشايكن', L.cmf.toFixed(2), L.cmf > 0.05 ? 'up' : L.cmf < -0.05 ? 'down' : '');
+  if (L.mfi != null)
+    cell('مؤشر التدفّق', L.mfi.toFixed(0), L.mfi > 55 ? 'up' : L.mfi < 45 ? 'down' : '');
+  el.appendChild(grid);
+
+  /* ميزان الأموال الداخلة والخارجة */
+  const bar = document.createElement('div');
+  bar.className = 'flowbar';
+  const inEl = document.createElement('i');
+  inEl.className = 'in';
+  inEl.style.width = L.flow.inflowShare + '%';
+  const outEl = document.createElement('i');
+  outEl.className = 'out';
+  outEl.style.width = 100 - L.flow.inflowShare + '%';
+  bar.append(inEl, outEl);
+  const lbl = document.createElement('div');
+  lbl.className = 'flowlabel';
+  const a1 = document.createElement('span');
+  a1.textContent = `على جلسات صاعدة ${L.flow.inflowShare.toFixed(0)}٪`;
+  const a2 = document.createElement('span');
+  a2.textContent = `هابطة ${(100 - L.flow.inflowShare).toFixed(0)}٪`;
+  lbl.append(a1, a2);
+  el.append(bar, lbl);
+
+  const net = document.createElement('div');
+  net.className = 'cell';
+  const nk = document.createElement('span');
+  nk.className = 'k';
+  nk.textContent = `صافي التدفّق خلال ${L.flow.window} جلسة`;
+  const nv = document.createElement('span');
+  nv.className = 'v ' + (L.flow.netFlow >= 0 ? 'up' : 'down');
+  nv.textContent = (L.flow.netFlow >= 0 ? '+' : '−') + fmt(Math.abs(L.flow.netFlow));
+  net.append(nk, nv);
+  el.appendChild(net);
+
+  /* الحكم: تجميع أم تصريف؟ */
+  const v = document.createElement('div');
+  v.className = 'verdict ' + (L.accumulation.tone === 'good' ? 'good' : L.accumulation.tone === 'bad' ? 'bad' : '');
+  const vb = document.createElement('b');
+  vb.textContent = L.accumulation.verdict;
+  const vt = document.createElement('span');
+  vt.textContent = L.accumulation.detail;
+  v.append(vb, vt);
+  el.appendChild(v);
+
+  /* عمق السوق وحجم المركز المريح — للأسهم فقط */
+  if (L.depth) {
+    const d = document.createElement('div');
+    d.className = 'verdict';
+    const db = document.createElement('b');
+    db.textContent = `عمق السيولة: ${L.depth.level}`;
+    const dt = document.createElement('span');
+    dt.textContent =
+      `${L.depth.note} كمرجع تقريبي، البقاء تحت ${fmt(L.positionHint)} في الصفقة ` +
+      'يقلّل أثرك على السعر.';
+    d.append(db, dt);
+    el.appendChild(d);
+  }
+
+  /* جلسات السيولة الاستثنائية */
+  if (L.bigDays.length) {
+    const t = document.createElement('div');
+    t.className = 'k';
+    t.style.cssText = 'font-size:10.5px;color:var(--muted);margin-top:4px';
+    t.textContent = 'جلسات دخلت فيها سيولة استثنائية';
+    el.appendChild(t);
+    L.bigDays.slice(0, 3).forEach((d) => {
+      const row = document.createElement('div');
+      row.className = 'bigday';
+      const left = document.createElement('span');
+      left.className = d.dir === 'up' ? 'up' : 'down';
+      left.textContent = `${d.dir === 'up' ? '▲' : '▼'} ${fmt(d.value)}`;
+      const right = document.createElement('span');
+      right.className = 'muted';
+      right.textContent = `${d.times.toFixed(1)}× المتوسط · ${new Date(d.time * 1000).toLocaleDateString('ar-EG')}`;
+      row.append(left, right);
+      el.appendChild(row);
+    });
+  }
 }
 
 function renderConfluencePanel() {

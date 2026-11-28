@@ -41,7 +41,6 @@ export const MARKETS = [
       { symbol: 'KZPC.CA', ar: 'كفر الزيات للمبيدات', en: 'Kafr El Zayat' },
       { symbol: 'PRMH.CA', ar: 'برايم القابضة', en: 'Prime Holding' },
       { symbol: 'ETRS.CA', ar: 'إيجيترانز', en: 'Egytrans' },
-      { symbol: '^CASE30', ar: 'مؤشر EGX 30', en: 'EGX 30 Index' },
     ],
   },
   {
@@ -102,5 +101,5 @@ export const DEFAULT_WATCHLIST = [
 /** الأدوات المسموح بها في البحث: البورصة المصرية + الذهب والفضة والنحاس */
 export function isAllowed(symbol) {
   const s = String(symbol).toUpperCase();
-  return s.endsWith('.CA') || s === '^CASE30' || ['GC=F', 'SI=F', 'HG=F', 'COPA.L'].includes(s);
+  return s.endsWith('.CA') || ['GC=F', 'SI=F', 'HG=F', 'COPA.L'].includes(s);
 }
