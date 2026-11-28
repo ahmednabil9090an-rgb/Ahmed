@@ -29,6 +29,14 @@ body[data-theme='light'] {
   box-sizing: border-box;
 }
 
+/* صفحة النشر تغلّف المستند وتضيف حشوة أمان للنتوء على :root، ونحن نضيفها
+   على الشريط العلوي والسفلي أيضًا — فتتضاعف المسافة ويظهر شريط فارغ كبير
+   أعلى الصفحة. نلغي حشوة الغلاف ونُبقي حشوتنا، فتبقى واحدة في كل الحالات. */
+html {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
 /* يتغلّب على قواعد display في الأصناف أدناه */
 [hidden] {
   display: none !important;
