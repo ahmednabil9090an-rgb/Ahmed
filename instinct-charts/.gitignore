@@ -1,0 +1,32 @@
+node_modules/
+
+# نسخ ملفات الواجهة داخل المشروعين النيتيف — يولّدها `npx cap sync`
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+
+# مخرجات البناء
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/captures/
+ios/App/build/
+ios/App/Pods/
+ios/App/output/
+DerivedData/
+*.apk
+*.aab
+*.ipa
+
+# أسرار التوقيع — لا ترفعها أبدًا
+android/keystore.properties
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+ios/App/App/GoogleService-Info.plist
+
+.DS_Store

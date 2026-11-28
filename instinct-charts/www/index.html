@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>إنستينكت تشارتس — تحليل البورصة المصرية والذهب والفضة والنحاس</title>
+    <meta name="theme-color" content="#0b0e14" />
+    <meta
+      name="description"
+      content="تحليل آلي للبورصة المصرية والذهب والفضة والنحاس: بنية السوق، فيبوناتشي، ونقاط الالتقاء."
+    />
+    <link rel="icon" href="icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <!-- الخط مضمّن محليًا حتى يعمل التطبيق بلا إنترنت وبلا وميض -->
+    <link rel="stylesheet" href="fonts/plex-arabic.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="vendor/lightweight-charts.standalone.production.js"></script>
+  </head>
+  <body data-theme="dark">
+    <!-- ================= الشريط العلوي ================= -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="spark">⚡</span>
+        <span class="brand-text">إنستينكت<b>تشارتس</b></span>
+      </div>
+
+      <div class="search-wrap">
+        <input
+          id="search"
+          type="search"
+          placeholder="ابحث عن سهم مصري أو معدن… (مثال: COMI أو التجاري الدولي أو ذهب)"
+          autocomplete="off"
+        />
+        <div id="search-results" class="search-results" hidden></div>
+      </div>
+
+      <div class="tf-group" id="tf-group"></div>
+
+      <div class="top-actions">
+        <button id="btn-indicators" class="icon-btn" title="المؤشرات">📈 المؤشرات</button>
+        <button id="btn-replay" class="icon-btn" title="إعادة تشغيل الشموع">⏯ إعادة التشغيل</button>
+        <button id="btn-theme" class="icon-btn" title="تبديل المظهر">🌙</button>
+        <button id="btn-refresh" class="icon-btn" title="تحديث">↻</button>
+      </div>
+    </header>
+
+    <!-- ================= الجسم ================= -->
+    <main class="layout">
+      <!-- الشريط الجانبي: المراقبة والأسواق والتنبيهات -->
+      <aside class="sidebar" id="sidebar">
+        <div class="tabs" id="side-tabs">
+          <button class="tab active" data-tab="watch">المراقبة</button>
+          <button class="tab" data-tab="markets">الأسواق</button>
+          <button class="tab" data-tab="alerts">التنبيهات <span id="alerts-count" class="pill"></span></button>
+        </div>
+
+        <div class="tab-panel" data-panel="watch">
+          <div id="watchlist" class="list"></div>
+        </div>
+
+        <div class="tab-panel" data-panel="markets" hidden>
+          <div id="markets" class="list"></div>
+        </div>
+
+        <div class="tab-panel" data-panel="alerts" hidden>
+          <div class="alert-form">
+            <div class="row">
+              <select id="alert-dir">
+                <option value="above">تجاوز</option>
+                <option value="below">هبوط تحت</option>
+              </select>
+              <input id="alert-price" type="number" step="any" placeholder="السعر" />
+              <button id="alert-add" class="primary sm">إضافة</button>
+            </div>
+            <button id="alert-zone" class="ghost sm wide">تنبيه عند دخول منطقة الدخول المثالية</button>
+          </div>
+          <div id="alerts-list" class="list"></div>
+        </div>
+      </aside>
+
+      <!-- منطقة الرسم -->
+      <section class="chart-col">
+        <!-- شريط الفريمات الأفقي — يظهر على الهاتف بدل مجموعة الأزرار العلوية -->
+        <div class="tf-strip" id="tf-strip"></div>
+
+        <div class="symbol-head">
+          <div class="sym-main">
+            <h1 id="sym-name">—</h1>
+            <span id="sym-code" class="muted"></span>
+            <button id="btn-fav" class="star" title="إضافة للمراقبة">☆</button>
+          </div>
+          <div class="sym-price">
+            <span id="price">—</span>
+            <span id="change" class="chg"></span>
+            <span id="sym-meta" class="muted small"></span>
+          </div>
+        </div>
+
+        <div id="data-note" class="data-note" hidden></div>
+        <div id="ohlc" class="ohlc"></div>
+
+        <div class="chart-area">
+          <div id="chart-price" class="chart-price"></div>
+          <div id="chart-subs" class="chart-subs"></div>
+          <div id="chart-loading" class="loading" hidden><span class="spinner"></span> جارٍ التحميل…</div>
+          <div id="chart-error" class="error-box" hidden></div>
+        </div>
+
+        <!-- شريط إعادة التشغيل -->
+        <div id="replay-bar" class="replay-bar" hidden>
+          <button id="rp-back" class="icon-btn sm" title="شمعة للخلف">⏮</button>
+          <button id="rp-play" class="icon-btn sm primary" title="تشغيل/إيقاف">▶</button>
+          <button id="rp-fwd" class="icon-btn sm" title="شمعة للأمام">⏭</button>
+          <input id="rp-seek" type="range" min="0" max="1000" value="600" />
+          <select id="rp-speed" title="السرعة">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+            <option value="4">4×</option>
+            <option value="8">8×</option>
+          </select>
+          <span id="rp-info" class="muted small"></span>
+          <button id="rp-exit" class="ghost sm">خروج</button>
+        </div>
+      </section>
+
+      <!-- لوحة التحليل -->
+      <aside class="analysis" id="analysis">
+        <div class="an-head">
+          <h2>خطة التداول</h2>
+          <span id="an-grade" class="badge">—</span>
+        </div>
+
+        <div class="confidence">
+          <div class="bar"><div id="conf-fill" class="fill"></div></div>
+          <span id="conf-text" class="muted small">—</span>
+        </div>
+
+        <p id="an-summary" class="summary">اختر أداة لعرض التحليل.</p>
+
+        <div class="levels" id="an-levels"></div>
+
+        <div class="htf" id="an-htf"></div>
+
+        <h3 class="sec-title">⭐ نقاط الالتقاء</h3>
+        <p class="hint">
+          مستويات اجتمع عندها أكثر من سبب مستقل — كلما زاد عدد العوامل وتاريخ الارتداد، صعُب كسرها.
+        </p>
+        <div class="conf-list" id="an-confluence"></div>
+
+        <h3 class="sec-title">قائمة التحقق</h3>
+        <ul class="checklist" id="an-checklist"></ul>
+
+        <h3 class="sec-title">أحداث البنية الأخيرة</h3>
+        <ul class="events" id="an-events"></ul>
+
+        <h3 class="sec-title">طبقات الرسم</h3>
+        <div class="layer-toggles" id="layer-toggles"></div>
+
+        <p class="disclaimer">
+          هذا التحليل آلي لأغراض تعليمية ولا يُعد توصية استثمارية. القرار النهائي قرارك.
+        </p>
+      </aside>
+    </main>
+
+    <!-- شريط التنقّل السفلي — يظهر على الهاتف فقط -->
+    <nav class="bottom-nav" id="bottom-nav">
+      <button data-view="chart" data-tab="" class="active">
+        <span class="ic">📊</span><span>الشارت</span>
+      </button>
+      <button data-view="side" data-tab="watch">
+        <span class="ic">⭐</span><span>المراقبة</span>
+      </button>
+      <button data-view="side" data-tab="markets">
+        <span class="ic">🧭</span><span>الأسواق</span>
+      </button>
+      <button data-view="plan" data-tab="">
+        <span class="ic">📋</span><span>الخطة</span>
+      </button>
+      <button data-view="side" data-tab="alerts">
+        <span class="ic">🔔</span><span>التنبيهات</span><span id="nav-alerts" class="dot"></span>
+      </button>
+    </nav>
+
+    <!-- قائمة المؤشرات -->
+    <div id="ind-menu" class="popover" hidden>
+      <h3>المؤشرات</h3>
+      <div id="ind-list" class="ind-list"></div>
+    </div>
+
+    <!-- شريط الإشعارات -->
+    <div id="toasts" class="toasts"></div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

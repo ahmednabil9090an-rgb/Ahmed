@@ -3,14 +3,31 @@
   "version": "1.0.0",
   "private": true,
   "description": "منصة رسوم بيانية وتحليل آلي للبورصة المصرية والذهب والفضة والنحاس — بديل مبسّط لتريدنج فيو",
-  "type": "commonjs",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js --port 8080"
+    "dev": "node server.js --port 8080",
+    "sync": "cap sync",
+    "android": "cap sync android && cap open android",
+    "ios": "cap sync ios && cap open ios"
   },
   "engines": {
     "node": ">=18"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/android": "^8.6.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/cli": "^8.6.3",
+    "@capacitor/core": "^8.6.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.6.3",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4"
+  }
 }

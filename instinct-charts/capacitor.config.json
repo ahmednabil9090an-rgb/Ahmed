@@ -1,0 +1,37 @@
+{
+  "appId": "com.instinctcharts.app",
+  "appName": "إنستينكت تشارتس",
+  "webDir": "www",
+  "backgroundColor": "#0b0e14",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0b0e14"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0b0e14",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 900,
+      "launchAutoHide": true,
+      "backgroundColor": "#0b0e14",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": false
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon",
+      "iconColor": "#3b82f6"
+    },
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

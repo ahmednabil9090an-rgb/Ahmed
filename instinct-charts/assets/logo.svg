@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#121826" />
+      <stop offset="1" stop-color="#0b0e14" />
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3cf6a" />
+      <stop offset="1" stop-color="#e0b341" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)" />
+
+  <!-- منطقة الالتقاء: الشريط الذي يميّز التطبيق -->
+  <rect x="64" y="300" width="384" height="58" fill="#17b26a" opacity="0.18" />
+  <rect x="64" y="300" width="384" height="58" fill="none" stroke="#17b26a" stroke-opacity="0.55" stroke-width="3" />
+
+  <!-- شموع -->
+  <g stroke-linecap="round">
+    <!-- هابطة -->
+    <line x1="120" y1="150" x2="120" y2="300" stroke="#e5484d" stroke-width="12" />
+    <rect x="100" y="178" width="40" height="96" rx="7" fill="#e5484d" />
+
+    <!-- صاعدة قصيرة -->
+    <line x1="208" y1="246" x2="208" y2="396" stroke="#17b26a" stroke-width="12" />
+    <rect x="188" y="286" width="40" height="86" rx="7" fill="#17b26a" />
+
+    <!-- صاعدة طويلة -->
+    <line x1="296" y1="150" x2="296" y2="372" stroke="#17b26a" stroke-width="12" />
+    <rect x="276" y="188" width="40" height="150" rx="7" fill="#17b26a" />
+
+    <!-- شمعة الاختراق -->
+    <line x1="384" y1="104" x2="384" y2="300" stroke="#3b82f6" stroke-width="12" />
+    <rect x="364" y="128" width="40" height="140" rx="7" fill="#3b82f6" />
+  </g>
+
+  <!-- برق: إشارة اللحظة الحاسمة -->
+  <g transform="translate(256 256) scale(0.84) translate(-256 -256)">
+    <path
+      d="M300 60 L188 248 L258 248 L214 452 L340 236 L266 236 Z"
+      fill="url(#bolt)"
+      stroke="#0b0e14"
+      stroke-width="16"
+      stroke-linejoin="round"
+    />
+    <path d="M300 60 L188 248 L258 248 L214 452 L340 236 L266 236 Z" fill="url(#bolt)" />
+  </g>
+</svg>
