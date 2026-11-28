@@ -119,6 +119,7 @@ export function normalizeChart(json) {
   const ts = r.timestamp || [];
   const q = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
   const bars = [];
+  const rawOpens = [];
   let repaired = 0;
 
   for (let i = 0; i < ts.length; i++) {
@@ -128,21 +129,22 @@ export function normalizeChart(json) {
     const c = q.close ? q.close[i] : null;
     if (o == null || h == null || l == null || c == null) continue;
 
-    const open = +o;
+    let open = +o;
     const cls = +c;
-    let high = +h;
-    let low = +l;
+    rawOpens.push(open);
+    // الإغلاق والقمة والقاع أسعار حقيقية جرى تداولها، فنجعل المدى يسعها
+    let high = Math.max(+h, cls);
+    let low = Math.min(+l, cls);
 
-    // يرجع المزوّد لبعض الأدوات — وبكثرة في البورصة المصرية — شموعًا
-    // غير متسقة يقع فيها سعر الفتح أو الإغلاق خارج مدى القمة والقاع.
-    // هذا مستحيل منطقيًا، ويفسد رسم الشموع وكشف الفجوات والقمم والقيعان
-    // وحساب المدى الحقيقي. نصلحه بتوسيع المدى ليشمل الجسم، وهو تصحيح
-    // آمن لأن القمة لا يمكن أن تقل عن الفتح أو الإغلاق بحكم التعريف.
-    const fixedHigh = Math.max(high, open, cls);
-    const fixedLow = Math.min(low, open, cls);
-    if (fixedHigh !== high || fixedLow !== low) repaired++;
-    high = fixedHigh;
-    low = fixedLow;
+    // أما سعر الافتتاح فغير موثوق: في البورصة المصرية يضعه المزوّد مساويًا
+    // لإغلاق الجلسة السابقة في نحو 98٪ من الجلسات، أي أنه مُصطنَع لا مُتداوَل.
+    // لذلك حين يقع خارج مدى الجلسة نحصره داخله بدل توسيع المدى — فتوسيعه
+    // يخترع قمة أو قاعًا لم يحدث، وتلك القمة المخترعة تُنتج قمم وقيعان
+    // وفجوات قيمة عادلة وهمية وتضخّم المدى الحقيقي.
+    if (open > high || open < low) {
+      open = Math.min(Math.max(open, low), high);
+      repaired++;
+    }
 
     bars.push({
       time: ts[i],
@@ -153,6 +155,15 @@ export function normalizeChart(json) {
       volume: q.volume && q.volume[i] != null ? +q.volume[i] : 0,
     });
   }
+
+  // هل أسعار الافتتاح مُصطنَعة؟ يُقاس على الأسعار الخام قبل الحصر،
+  // لأن الحصر نفسه يغيّر بعضها. المزوّد يضع في البورصة المصرية افتتاح
+  // الجلسة مساويًا لإغلاق سابقتها، فلا يحمل الافتتاح أي معلومة حقيقية.
+  let sameAsPrev = 0;
+  for (let i = 1; i < bars.length; i++) {
+    if (Math.abs(rawOpens[i] - bars[i - 1].close) < 1e-9) sameAsPrev++;
+  }
+  const syntheticOpen = bars.length > 30 && sameAsPrev / (bars.length - 1) > 0.8;
 
   const m = r.meta || {};
   const lastBar = bars[bars.length - 1];
@@ -188,6 +199,7 @@ export function normalizeChart(json) {
       lastBarTime: lastBar ? lastBar.time : null,
       quoteStale: !metaTrusted,
       repairedBars: repaired,
+      syntheticOpen: syntheticOpen,
       dayHigh: lastBar ? lastBar.high : m.regularMarketDayHigh,
       dayLow: lastBar ? lastBar.low : m.regularMarketDayLow,
       marketTime: metaTrusted ? metaTime : lastBar ? lastBar.time : null,
