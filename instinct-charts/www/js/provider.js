@@ -119,18 +119,37 @@ export function normalizeChart(json) {
   const ts = r.timestamp || [];
   const q = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
   const bars = [];
+  let repaired = 0;
+
   for (let i = 0; i < ts.length; i++) {
     const o = q.open ? q.open[i] : null;
     const h = q.high ? q.high[i] : null;
     const l = q.low ? q.low[i] : null;
     const c = q.close ? q.close[i] : null;
     if (o == null || h == null || l == null || c == null) continue;
+
+    const open = +o;
+    const cls = +c;
+    let high = +h;
+    let low = +l;
+
+    // يرجع المزوّد لبعض الأدوات — وبكثرة في البورصة المصرية — شموعًا
+    // غير متسقة يقع فيها سعر الفتح أو الإغلاق خارج مدى القمة والقاع.
+    // هذا مستحيل منطقيًا، ويفسد رسم الشموع وكشف الفجوات والقمم والقيعان
+    // وحساب المدى الحقيقي. نصلحه بتوسيع المدى ليشمل الجسم، وهو تصحيح
+    // آمن لأن القمة لا يمكن أن تقل عن الفتح أو الإغلاق بحكم التعريف.
+    const fixedHigh = Math.max(high, open, cls);
+    const fixedLow = Math.min(low, open, cls);
+    if (fixedHigh !== high || fixedLow !== low) repaired++;
+    high = fixedHigh;
+    low = fixedLow;
+
     bars.push({
       time: ts[i],
-      open: +o,
-      high: +h,
-      low: +l,
-      close: +c,
+      open,
+      high,
+      low,
+      close: cls,
       volume: q.volume && q.volume[i] != null ? +q.volume[i] : 0,
     });
   }
@@ -168,6 +187,7 @@ export function normalizeChart(json) {
       previousClose: prevBar ? prevBar.close : m.chartPreviousClose,
       lastBarTime: lastBar ? lastBar.time : null,
       quoteStale: !metaTrusted,
+      repairedBars: repaired,
       dayHigh: lastBar ? lastBar.high : m.regularMarketDayHigh,
       dayLow: lastBar ? lastBar.low : m.regularMarketDayLow,
       marketTime: metaTrusted ? metaTime : lastBar ? lastBar.time : null,

@@ -8,6 +8,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js --port 8080",
+    "test": "node tests/run.mjs",
+    "check:live": "node tests/live-check.mjs",
     "sync": "cap sync",
     "android": "cap sync android && cap open android",
     "ios": "cap sync ios && cap open ios"

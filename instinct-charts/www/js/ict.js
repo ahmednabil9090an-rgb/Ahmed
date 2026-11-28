@@ -174,11 +174,12 @@ export function orderBlockFor(bars, event) {
     const b = bars[i];
     const isBear = b.close < b.open;
     if (wantBearCandle === isBear) {
+      // مدى الشمعة كاملًا بذيولها — المزوّد يضمن اتساق القمة والقاع مع الجسم
       return {
         kind: 'ob',
         dir: event.dir,
-        top: Math.max(b.open, b.close, b.high),
-        bottom: Math.min(b.open, b.close, b.low),
+        top: b.high,
+        bottom: b.low,
         index: i,
         time: b.time,
       };
