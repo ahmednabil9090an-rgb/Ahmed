@@ -40,6 +40,7 @@ export const MARKETS = [
       { symbol: 'RAYA.CA', ar: 'راية القابضة', en: 'Raya Holding' },
       { symbol: 'KZPC.CA', ar: 'كفر الزيات للمبيدات', en: 'Kafr El Zayat' },
       { symbol: 'PRMH.CA', ar: 'برايم القابضة', en: 'Prime Holding' },
+      { symbol: 'ASPI.CA', ar: 'أسباير كابيتال القابضة', en: 'Aspire Capital Holding' },
       { symbol: 'ETRS.CA', ar: 'إيجيترانز', en: 'Egytrans' },
     ],
   },
