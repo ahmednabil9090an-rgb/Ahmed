@@ -30,3 +30,6 @@ android/keystore.properties
 ios/App/App/GoogleService-Info.plist
 
 .DS_Store
+
+# نسخة الملف الواحد — مولّدة بـ build-standalone.mjs وتحمل لقطة بيانات تَقدُم
+standalone.html
