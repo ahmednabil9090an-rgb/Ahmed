@@ -54,7 +54,7 @@ const INTRADAY_TFS = new Set(['1m', '5m', '15m', '30m', '1h', '4h']);
 
 /** شاشة ضيقة: نعرض عددًا أقل من الشموع والطبقات حتى يبقى الرسم مقروءًا */
 const isCompact = () => window.innerWidth <= 820;
-const focusBars = () => (isCompact() ? 70 : 130);
+const focusBars = () => (isCompact() ? 45 : 120);
 
 /**
  * يقرأ مجموعة محفوظة، ويفعّل تلقائيًا أي خيار جديد أُضيف للتطبيق بعد آخر
@@ -579,6 +579,12 @@ function drawAnalysisLayers() {
   const lines = [];
   const labels = [];
   const compact = isCompact();
+  // على الشاشة الضيقة نُبقي التسميات للطبقات القابلة للتنفيذ فقط،
+  // ويبقى الخط أو الشريط مرسومًا بلا نص — فيقلّ الزحام ولا تضيع المعلومة.
+  const quiet = (text) => (compact ? null : text);
+  // تعبئة أخف على الشاشة الضيقة: المناطق تتراكب فتحجب الشموع
+  const dim = (rgba, factor) => rgba.replace(/,\s*([\d.]+)\)$/, (m, a) => `,${(+a * factor).toFixed(3)})`);
+  const F = (c) => (compact ? dim(c, 0.6) : c);
 
   /* --- فجوات القيمة العادلة على الفريم الحالي --- */
   if (state.layers.has('fvg')) {
@@ -588,9 +594,10 @@ function drawAnalysisLayers() {
         bottom: f.bottom,
         fromIndex: f.index - 1,
         toIndex: null,
-        fill: f.dir === 'bull' ? 'rgba(23,178,106,.13)' : 'rgba(229,72,77,.13)',
+        fill: F(f.dir === 'bull' ? 'rgba(23,178,106,.13)' : 'rgba(229,72,77,.13)'),
         stroke: f.dir === 'bull' ? 'rgba(23,178,106,.35)' : 'rgba(229,72,77,.35)',
-        label: 'FVG',
+        label: quiet('FVG'),
+        priority: 80,
         labelColor: f.dir === 'bull' ? 'rgba(23,178,106,.9)' : 'rgba(229,72,77,.9)',
       });
     });
@@ -609,9 +616,10 @@ function drawAnalysisLayers() {
           bottom: f.bottom,
           fromIndex: indexAtTime(bars, f.startTime),
           toIndex: null,
-          fill: `rgba(${mk.color},.12)`,
+          fill: F(`rgba(${mk.color},.12)`),
           stroke: `rgba(${mk.color},.3)`,
-          label: mk.tag,
+          label: quiet(mk.tag),
+          priority: 70,
           labelColor: `rgba(${mk.color},.95)`,
         });
       });
@@ -626,11 +634,14 @@ function drawAnalysisLayers() {
       bottom: i.ote.bottom,
       fromIndex: Math.min(i.from.index, i.to.index),
       toIndex: null,
-      fill: 'rgba(224,179,65,.15)',
+      fill: F('rgba(224,179,65,.15)'),
       stroke: 'rgba(224,179,65,.45)',
-      label: `منطقة ذهبية OTE ${roundPrice(Math.min(i.ote.top, i.ote.bottom))} – ${roundPrice(
-        Math.max(i.ote.top, i.ote.bottom)
-      )}`,
+      label: quiet(
+        `منطقة ذهبية OTE ${roundPrice(Math.min(i.ote.top, i.ote.bottom))} – ${roundPrice(
+          Math.max(i.ote.top, i.ote.bottom)
+        )}`
+      ),
+      priority: 40,
       labelColor: 'rgba(224,179,65,.95)',
     });
     lines.push({
@@ -639,7 +650,8 @@ function drawAnalysisLayers() {
       toIndex: null,
       color: 'rgba(148,163,184,.8)',
       dashed: true,
-      label: `توازن ${roundPrice(i.equilibrium)}`,
+      label: quiet(`توازن ${roundPrice(i.equilibrium)}`),
+      priority: 65,
     });
   }
 
@@ -678,6 +690,7 @@ function drawAnalysisLayers() {
         dashed: x.r !== 0 && x.r !== 1,
         width: x.r === 0.618 ? 1.5 : 1,
         label: x.named ? `فيبو ${x.label} · ${roundPrice(base(x.r))}` : null,
+        priority: 55,
         labelAt: 'end',
       });
     });
@@ -696,7 +709,8 @@ function drawAnalysisLayers() {
         toIndex: null,
         color: 'rgba(167,139,250,.65)',
         dashed: true,
-        label: `${x.label} · ${roundPrice(x.v)}`,
+        label: quiet(`${x.label} · ${roundPrice(x.v)}`),
+        priority: 75,
         labelAt: 'end',
       });
     });
@@ -719,10 +733,12 @@ function drawAnalysisLayers() {
         toIndex: null,
         fill: `rgba(${rgb},${alpha})`,
         stroke: `rgba(${rgb},${strong ? 0.85 : 0.4})`,
-        label:
-          `${strong ? '⭐ ' : ''}${isSup ? 'دعم' : 'مقاومة'} التقاء ${z.strength} · ` +
-          `${z.catCount} عوامل` +
-          (z.reaction.touches >= 2 ? ` · ارتدّ ${z.reaction.bounces}/${z.reaction.touches}` : ''),
+        priority: 20,
+        label: compact
+          ? `${strong ? '⭐ ' : ''}${isSup ? 'دعم' : 'مقاومة'} ${z.strength} · ارتدّ ${z.reaction.bounces}/${z.reaction.touches}`
+          : `${strong ? '⭐ ' : ''}${isSup ? 'دعم' : 'مقاومة'} التقاء ${z.strength} · ` +
+            `${z.catCount} عوامل` +
+            (z.reaction.touches >= 2 ? ` · ارتدّ ${z.reaction.bounces}/${z.reaction.touches}` : ''),
         labelColor: `rgba(${rgb},1)`,
       });
     });
@@ -736,9 +752,10 @@ function drawAnalysisLayers() {
       bottom: ob.bottom,
       fromIndex: ob.index,
       toIndex: null,
-      fill: ob.dir === 'bull' ? 'rgba(59,130,246,.14)' : 'rgba(168,85,247,.14)',
+      fill: F(ob.dir === 'bull' ? 'rgba(59,130,246,.14)' : 'rgba(168,85,247,.14)'),
       stroke: 'rgba(59,130,246,.4)',
-      label: 'منطقة أوامر',
+      label: quiet('منطقة أوامر'),
+      priority: 72,
       labelColor: 'rgba(96,165,250,.95)',
     });
   }
@@ -760,7 +777,8 @@ function drawAnalysisLayers() {
         toIndex: e.breakIndex,
         color: e.kind === 'MSS' ? '#3b82f6' : 'rgba(148,163,184,.7)',
         width: e.kind === 'MSS' ? 1.6 : 1,
-        label: e.kind,
+        label: compact && e.kind !== 'MSS' ? null : e.kind,
+        priority: e.kind === 'MSS' ? 45 : 85,
       });
       markers.push({
         time: bars[e.breakIndex].time,
@@ -782,7 +800,8 @@ function drawAnalysisLayers() {
         toIndex: null,
         color: l.type === 'buyside' ? 'rgba(229,72,77,.55)' : 'rgba(23,178,106,.55)',
         dashed: true,
-        label: l.type === 'buyside' ? 'أوامر معلّقة أعلى' : 'أوامر معلّقة أسفل',
+        label: quiet(l.type === 'buyside' ? 'أوامر معلّقة أعلى' : 'أوامر معلّقة أسفل'),
+        priority: 78,
         labelAt: 'end',
       });
     });
@@ -801,7 +820,8 @@ function drawAnalysisLayers() {
         toIndex: null,
         fill: long ? 'rgba(23,178,106,.2)' : 'rgba(229,72,77,.18)',
         stroke: long ? 'rgba(23,178,106,.55)' : 'rgba(229,72,77,.5)',
-        label: `${plan.sideWord} مثالي ${e.ideal.bottom} – ${e.ideal.top}`,
+        priority: 10,
+        label: `${plan.sideWord} ${e.ideal.bottom} – ${e.ideal.top}`,
         labelColor: long ? 'rgba(23,178,106,1)' : 'rgba(248,113,113,1)',
       });
     }
@@ -821,8 +841,9 @@ function drawAnalysisLayers() {
           bottom: t.low,
           fromIndex: Math.max(0, bars.length - 45),
           toIndex: null,
-          fill: 'rgba(23,178,106,.12)',
+          fill: F('rgba(23,178,106,.12)'),
           stroke: 'rgba(23,178,106,.35)',
+          priority: 30 + i,
           label:
             `هدف ${i + 1}: ${t.low} – ${t.high}` +
             (rate && rate.rate != null ? ` · تحقّق ${Math.round(rate.rate * 100)}٪` : ''),

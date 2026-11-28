@@ -1493,8 +1493,8 @@ button.wide {
 /* ============ تكبير الشارت ============ */
 .unmax {
   position: fixed;
-  top: calc(8px + env(safe-area-inset-top));
-  inset-inline-end: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  inset-inline-start: 10px;
   z-index: 95;
   background: color-mix(in srgb, var(--panel) 86%, transparent);
   border: 1px solid var(--line);

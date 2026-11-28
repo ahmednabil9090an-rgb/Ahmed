@@ -155,6 +155,49 @@ export class ChartManager {
     }
     const right = w - priceAxisWidth;
 
+    /* ------------------------------------------------------------
+     * التسميات تُجمع أولًا ثم تُرسم في جولة ثانية مرتّبة بالأهمية،
+     * مع منع التراكب. تراكمُها فوق بعضها كان يجعل الرسم غير مقروء،
+     * والأولى أن تختفي تسمية ثانوية من أن تطمس تسمية أهم منها.
+     * ---------------------------------------------------------- */
+    const labelQueue = [];
+    const placed = [];
+    const LH = 13; // ارتفاع شريحة التسمية
+
+    const collides = (x, y, wd) =>
+      placed.some(
+        (p) => !(x + wd < p.x - 2 || x > p.x + p.w + 2 || y + LH < p.y || y > p.y + (p.h ?? LH))
+      );
+
+    // الشريط العلوي محجوز لسطر بيانات الشمعة المرسوم فوق الرسم
+    placed.push({ x: 0, y: 0, w: right, h: 20 });
+
+    const queueLabel = (text, x, y, color, priority, bg) =>
+      labelQueue.push({ text, x, y, color, priority, bg });
+
+    const flushLabels = () => {
+      ctx.font = '600 10px "IBM Plex Sans Arabic", sans-serif';
+      ctx.textBaseline = 'top';
+      labelQueue.sort((a, b) => a.priority - b.priority);
+      for (const L of labelQueue) {
+        const tw = ctx.measureText(L.text).width;
+        let x = Math.min(Math.max(L.x, 4), Math.max(4, right - tw - 6));
+        let y = Math.max(L.y, 2);
+        let ok = !collides(x, y, tw);
+        // محاولات إزاحة رأسية بسيطة قبل التخلّي عن التسمية
+        for (let k = 1; k <= 3 && !ok; k++) {
+          y = L.y + k * (LH + 2);
+          ok = !collides(x, y, tw);
+        }
+        if (!ok || y + LH > h - 4) continue;
+        ctx.fillStyle = L.bg || (this.theme === 'dark' ? 'rgba(11,14,20,.82)' : 'rgba(255,255,255,.86)');
+        ctx.fillRect(x - 3, y, tw + 6, LH);
+        ctx.fillStyle = L.color;
+        ctx.fillText(L.text, x, y + 1.5);
+        placed.push({ x: x - 3, y, w: tw + 6, h: LH });
+      }
+    };
+
     // المناطق المستطيلة
     for (const z of this.overlays.zones) {
       const yTop = this._y(z.top);
@@ -181,14 +224,7 @@ export class ChartManager {
       }
 
       if (z.label && height > 12) {
-        ctx.font = '600 10px "IBM Plex Sans Arabic", sans-serif';
-        ctx.textBaseline = 'top';
-        const tw = ctx.measureText(z.label).width;
-        const tx = Math.min(Math.max(x1 + 5, 5), Math.max(5, right - tw - 6));
-        ctx.fillStyle = this.theme === 'dark' ? 'rgba(11,14,20,.72)' : 'rgba(255,255,255,.78)';
-        ctx.fillRect(tx - 3, top + 1.5, tw + 6, 12);
-        ctx.fillStyle = z.labelColor || '#c7cede';
-        ctx.fillText(z.label, tx, top + 2);
+        queueLabel(z.label, x1 + 5, top + 1.5, z.labelColor || '#c7cede', z.priority ?? 50);
       }
     }
 
@@ -215,21 +251,13 @@ export class ChartManager {
       ctx.restore();
 
       if (l.label) {
-        ctx.font = '600 10px "IBM Plex Sans Arabic", sans-serif';
-        const tw = ctx.measureText(l.label).width;
-        // الوضع "end" يضع التسمية عند نهاية الخط بدل منتصفه (أقل ازدحامًا)
-        const cx =
-          l.labelAt === 'end'
-            ? Math.max(x1, Math.min(x2 - tw - 6, right - tw - 6))
-            : (x1 + x2) / 2 - tw / 2;
-        ctx.fillStyle =
-          l.labelBg || (this.theme === 'dark' ? 'rgba(11,14,20,.82)' : 'rgba(255,255,255,.85)');
-        ctx.fillRect(cx - 4, y - 14, tw + 8, 13);
-        ctx.fillStyle = l.color;
-        ctx.textBaseline = 'top';
-        ctx.fillText(l.label, cx, y - 13);
+        // "end" يضع التسمية عند نهاية الخط بدل منتصفه — أقل ازدحامًا
+        const cx = l.labelAt === 'end' ? right - 140 : (x1 + x2) / 2 - 20;
+        queueLabel(l.label, cx, y - 14, l.color, l.priority ?? 60, l.labelBg);
       }
     }
+
+    flushLabels();
 
     // تسميات حرة عند شمعة/سعر محدد
     for (const t of this.overlays.labels) {
