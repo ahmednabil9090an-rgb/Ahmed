@@ -11,7 +11,9 @@
 
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   TF,
@@ -211,6 +213,49 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+/* ------------------------------------------------------------------ */
+/* بدء التشغيل                                                          */
+/* ------------------------------------------------------------------ */
+
+/** عنوان الجهاز على الشبكة المحلية — لفتح التطبيق من الموبايل */
+function localNetworkAddress() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return null;
+}
+
+function openBrowser(url) {
+  const cmd =
+    process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
+  try {
+    const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
+    // لا بد من معالج للخطأ: غياب أمر الفتح يُطلق حدثًا غير متزامن
+    // يُسقط العملية كلها إن لم يُلتقط — والعنوان مطبوع على أي حال.
+    child.on('error', () => {});
+    child.unref();
+  } catch {
+    /* تعذّر فتح المتصفح */
+  }
+}
+
 server.listen(argPort, () => {
-  console.log(`Instinct Charts يعمل على  http://localhost:${argPort}`);
+  const lan = localNetworkAddress();
+  const line = '─'.repeat(46);
+  console.log(`\n${line}`);
+  console.log('  إنستينكت تشارتس يعمل الآن');
+  console.log(line);
+  console.log(`  على هذا الجهاز:   http://localhost:${argPort}`);
+  if (lan) {
+    console.log(`  من الموبايل:      http://${lan}:${argPort}`);
+    console.log('  (لا بد أن يكون الموبايل على نفس شبكة الواي فاي)');
+  }
+  console.log(`${line}`);
+  console.log('  للإيقاف: اضغط Ctrl + C\n');
+
+  if (process.argv.includes('--open')) openBrowser(`http://localhost:${argPort}`);
 });
