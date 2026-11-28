@@ -270,11 +270,13 @@ const banner = `
     <div class="snapshot-note">
       📦 نسخة تجريبية ببيانات محفوظة بتاريخ <b id="snap-date"></b> — الأسعار ثابتة ولا تتحدّث.
       للأسعار الحيّة شغّل النسخة الكاملة على جهازك.
+      <button class="snapshot-x" onclick="this.parentElement.remove();window.dispatchEvent(new Event('resize'))">✕</button>
     </div>`;
 html = html.replace('<main class="layout">', `${banner}\n    <main class="layout">`);
 
 const extraCss = `
 .snapshot-note {
+  position: relative;
   background: color-mix(in srgb, var(--gold) 18%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
   color: var(--text);
@@ -283,8 +285,20 @@ const extraCss = `
   text-align: center;
   line-height: 1.6;
 }
+.snapshot-x {
+  position: absolute;
+  inset-inline-end: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
 @media (max-width: 820px) {
-  .snapshot-note { font-size: 10.5px; padding: 5px 10px; }
+  .snapshot-note { font-size: 10.5px; padding: 5px 24px 5px 10px; }
   .layout { height: calc(100% - var(--header) - 30px - env(safe-area-inset-top)); }
 }
 `;

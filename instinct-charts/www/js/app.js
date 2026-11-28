@@ -1493,6 +1493,8 @@ function renderConfluencePanel() {
 
 /** قيم المتوسطات عند آخر شمعة — تُعرض بجوار بيانات الشمعة */
 function maLegend(bars) {
+  // على الشاشة الضيقة يُقطع السطر، والمتوسطات مرسومة على الشارت بألوانها
+  if (isCompact() && !document.body.classList.contains('chart-max')) return '';
   const defs = [
     ['ema20', 20, '#2bb673', 'EMA20'],
     ['ema50', 50, '#f0a33c', 'EMA50'],
@@ -1671,6 +1673,28 @@ function wireUI() {
   $('btn-theme').textContent = state.theme === 'dark' ? '🌙' : '☀️';
 
   $('btn-refresh').onclick = () => loadSymbol();
+
+  // تكبير الشارت: إخفاء كل ما حوله ومنحه الشاشة كاملة
+  const setMax = (on) => {
+    document.body.classList.toggle('chart-max', on);
+    $('btn-unmax').hidden = !on;
+    $('btn-max').classList.toggle('active', on);
+    // الرسم يقيس نفسه تلقائيًا، لكن الطبقة المرسومة فوقه تحتاج إعادة رسم
+    requestAnimationFrame(() => {
+      if (cm.onCrosshair) cm.onCrosshair(null); // سطر الشمعة يتغيّر بتغيّر المساحة
+      cm.drawOverlay();
+      requestAnimationFrame(() => cm.drawOverlay());
+    });
+  };
+  $('btn-max').onclick = () => {
+    const on = !document.body.classList.contains('chart-max');
+    if (on && isCompact()) setView('chart', '');
+    setMax(on);
+  };
+  $('btn-unmax').onclick = () => setMax(false);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('chart-max')) setMax(false);
+  });
 
   // إعادة التشغيل
   $('btn-replay').onclick = () => (replay.active ? exitReplay() : enterReplay());
