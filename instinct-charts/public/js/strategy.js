@@ -5,6 +5,7 @@
  */
 
 import { atr, ema, rsi, closes } from './indicators.js';
+import { zonesOverlap } from './confluence.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -31,8 +32,9 @@ function overlap(a, b) {
  * @param bars   شموع الفريم الحالي
  * @param A      نتيجة analyze() للفريم الحالي
  * @param htf    { '1d': analysisResult, '1wk': analysisResult } للتوافق بين الأطر
+ * @param conf   نتيجة findConfluence() لتعزيز منطقة الدخول بنقاط الالتقاء
  */
-export function buildPlan(bars, A, htf = {}) {
+export function buildPlan(bars, A, htf = {}, conf = null) {
   if (!A || !A.ok) return { ok: false, reason: (A && A.reason) || 'تحليل غير متاح' };
 
   const last = bars[bars.length - 1];
@@ -208,6 +210,18 @@ export function buildPlan(bars, A, htf = {}) {
   const rrOk = (rrFor(idealMid) || 0) >= 2;
   add(rrOk, 'نسبة عائد/مخاطرة 2 أو أكثر من المنطقة المثالية', 14);
 
+  // نقطة الالتقاء: هل تسند منطقة الدخول أسباب مستقلة متعددة؟
+  const confSide = conf ? (isLong ? conf.supports : conf.resistances) : [];
+  const confAtEntry = ideal ? confSide.find((z) => zonesOverlap(z, ideal)) : null;
+  const bestConf = confSide[0] || null;
+  add(
+    !!(confAtEntry && confAtEntry.reliable),
+    confAtEntry
+      ? `منطقة الدخول عليها نقطة التقاء بقوة ${confAtEntry.strength} (${confAtEntry.catCount} عوامل)`
+      : 'منطقة الدخول مدعومة بنقطة التقاء قوية',
+    16
+  );
+
   const totalWeight = checklist.reduce((s, c) => s + c.weight, 0);
   const gained = checklist.filter((c) => c.ok).reduce((s, c) => s + c.weight, 0);
   const confidence = direction === 'none' ? 0 : Math.round(clamp((gained / totalWeight) * 100, 0, 100));
@@ -234,6 +248,14 @@ export function buildPlan(bars, A, htf = {}) {
       (ideal ? `، وأفضل منطقة دخول بين ${roundPrice(ideal.bottom)} و ${roundPrice(ideal.top)} (${idealSource})` : '') +
       `. الوقف ${isLong ? 'تحت' : 'فوق'} ${roundPrice(stop)}` +
       (finalTargets.length ? `، والهدف الأبعد ${roundPrice(finalTargets[finalTargets.length - 1].price)}.` : '.') +
+      (confAtEntry && confAtEntry.reliable
+        ? ` وتزكية إضافية: منطقة الدخول نفسها نقطة التقاء بقوة ${confAtEntry.strength} يجتمع عندها ${confAtEntry.catCount} عوامل` +
+          (confAtEntry.proven
+            ? ` (ارتدّ منها السعر ${confAtEntry.reaction.bounces} من ${confAtEntry.reaction.touches} اقترابات سابقة).`
+            : ' (لم تُختبر كثيرًا بعد).')
+        : bestConf && bestConf.reliable
+        ? ` أقوى نقطة التقاء قريبة عند ${roundPrice(bestConf.low)} – ${roundPrice(bestConf.high)} بقوة ${bestConf.strength}.`
+        : '') +
       ` جودة الفرصة: ${grade} (${confidence}%).`;
   }
 
@@ -265,6 +287,7 @@ export function buildPlan(bars, A, htf = {}) {
     grade,
     checklist,
     summary,
+    confluence: { atEntry: confAtEntry, best: bestConf },
     rsi: rsiNow != null ? +rsiNow.toFixed(1) : null,
     ema50: ema50[ema50.length - 1] != null ? roundPrice(ema50[ema50.length - 1]) : null,
     ema200: ema200[ema200.length - 1] != null ? roundPrice(ema200[ema200.length - 1]) : null,

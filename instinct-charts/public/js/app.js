@@ -10,8 +10,10 @@ import {
   normalizeAr,
 } from './symbols.js';
 import { analyze } from './ict.js';
+import { findConfluence } from './confluence.js';
 import { buildPlan, roundPrice, labelBias } from './strategy.js';
 import { ChartManager, renderSubPanes, renderPriceOverlays } from './chart.js';
+import * as Ind from './indicators.js';
 import { Replay } from './replay.js';
 import * as Alerts from './alerts.js';
 import { load, save } from './store.js';
@@ -33,6 +35,8 @@ const TIMEFRAMES = [
 ];
 
 const LAYERS = [
+  { id: 'confluence', label: '⭐ نقاط الالتقاء' },
+  { id: 'fib', label: 'فيبوناتشي' },
   { id: 'fvg', label: 'فجوات الفريم' },
   { id: 'htf', label: 'فجوات يومي/أسبوعي' },
   { id: 'ote', label: 'منطقة OTE' },
@@ -42,6 +46,25 @@ const LAYERS = [
   { id: 'plan', label: 'مستويات الخطة' },
 ];
 
+const INTRADAY_TFS = new Set(['1m', '5m', '15m', '30m', '1h', '4h']);
+
+/**
+ * يقرأ مجموعة محفوظة، ويفعّل تلقائيًا أي خيار جديد أُضيف للتطبيق بعد آخر
+ * حفظ — حتى لا تختفي الميزات الجديدة عمّن استخدم التطبيق من قبل.
+ */
+function loadSet(key, allIds, defaults) {
+  const stored = load(key, null);
+  const knownKey = key + ':known';
+  const known = load(knownKey, null);
+  save(knownKey, allIds);
+  if (!stored) return new Set(defaults);
+  const set = new Set(stored);
+  if (known) allIds.filter((id) => !known.includes(id)).forEach((id) => set.add(id));
+  return set;
+}
+
+const INDICATOR_IDS = ['ema20', 'ema50', 'ema200', 'bb', 'vwap', 'volume', 'rsi', 'macd', 'wt'];
+
 const state = {
   symbol: load('symbol', 'COMI.CA'),
   tf: load('tf', '1d'),
@@ -50,8 +73,23 @@ const state = {
   htf: {},
   analysis: null,
   plan: null,
-  indicators: new Set(load('indicators', ['volume', 'rsi', 'wt'])),
-  layers: new Set(load('layers', LAYERS.map((l) => l.id))),
+  indicators: loadSet('indicators', INDICATOR_IDS, [
+    'ema20',
+    'ema50',
+    'ema200',
+    'volume',
+    'rsi',
+    'wt',
+  ]),
+  // المناطق المعروضة افتراضيًا — الباقي يُفعّل من لوحة «طبقات الرسم»
+  layers: loadSet('layers', LAYERS.map((l) => l.id), [
+    'confluence',
+    'fib',
+    'htf',
+    'structure',
+    'plan',
+  ]),
+  confluence: { supports: [], resistances: [], all: [] },
   theme: load('theme', 'dark'),
   watchlist: load('watchlist', DEFAULT_WATCHLIST),
   lastPrice: null,
@@ -417,6 +455,7 @@ function drawIndicators() {
   if (!bars.length) return;
   renderPriceOverlays(cm, bars, state.indicators);
   renderSubPanes(cm, bars, state.indicators);
+  if (cm.onCrosshair) cm.onCrosshair(null);
 }
 
 /* ------------------------------------------------------------------ */
@@ -426,12 +465,15 @@ function drawIndicators() {
 function recompute(bars, { light = false } = {}) {
   if (!bars || bars.length < 20) return;
   state.analysis = analyze(bars);
+  state.confluence = findConfluence(bars, state.analysis, {
+    intraday: INTRADAY_TFS.has(state.tf),
+  });
 
   // الفريم الحالي يُحتسب ضمن أطر التأكيد إن كان يوميًا أو أسبوعيًا
   const htfForPlan = { ...state.htf };
   if (state.tf === '1d' || state.tf === '1wk') htfForPlan[state.tf] = state.analysis;
 
-  state.plan = buildPlan(bars, state.analysis, htfForPlan);
+  state.plan = buildPlan(bars, state.analysis, htfForPlan, state.confluence);
   drawAnalysisLayers();
   renderAnalysisPanel();
   if (!light) drawIndicators();
@@ -521,6 +563,80 @@ function drawAnalysisLayers() {
       color: 'rgba(148,163,184,.8)',
       dashed: true,
       label: `توازن ${roundPrice(i.equilibrium)}`,
+    });
+  }
+
+  /* --- شبكة فيبوناتشي على الساق الاندفاعية --- */
+  if (state.layers.has('fib') && A.impulse) {
+    const imp = A.impulse;
+    const up = imp.dir === 'bull';
+    const range = imp.range;
+    const legStart = Math.min(imp.from.index, imp.to.index);
+    const base = (r) => (up ? imp.high.price - range * r : imp.low.price + range * r);
+
+    // النسب الرئيسية فقط تحمل تسمية حتى لا يزدحم الرسم
+    const ratios = [
+      { r: 0, label: '0', color: 'rgba(148,163,184,.7)', named: false },
+      { r: 0.236, label: '0.236', color: 'rgba(148,163,184,.5)', named: false },
+      { r: 0.382, label: '0.382', color: 'rgba(96,165,250,.75)', named: true },
+      { r: 0.5, label: '0.5', color: 'rgba(148,163,184,.8)', named: true },
+      { r: 0.618, label: '0.618', color: 'rgba(224,179,65,.95)', named: true },
+      { r: 0.705, label: '0.705', color: 'rgba(224,179,65,.55)', named: false },
+      { r: 0.786, label: '0.786', color: 'rgba(224,179,65,.85)', named: true },
+      { r: 1, label: '1', color: 'rgba(148,163,184,.7)', named: false },
+    ];
+    ratios.forEach((x) => {
+      lines.push({
+        price: base(x.r),
+        fromIndex: legStart,
+        toIndex: null,
+        color: x.color,
+        dashed: x.r !== 0 && x.r !== 1,
+        width: x.r === 0.618 ? 1.5 : 1,
+        label: x.named ? `فيبو ${x.label} · ${roundPrice(base(x.r))}` : null,
+        labelAt: 'end',
+      });
+    });
+
+    // امتدادات لأهداف ما بعد الساق
+    [
+      { v: imp.ext.e1272, label: 'امتداد 1.272' },
+      { v: imp.ext.e1618, label: 'امتداد 1.618' },
+    ].forEach((x) => {
+      lines.push({
+        price: x.v,
+        fromIndex: Math.max(legStart, bars.length - 80),
+        toIndex: null,
+        color: 'rgba(167,139,250,.65)',
+        dashed: true,
+        label: `${x.label} · ${roundPrice(x.v)}`,
+        labelAt: 'end',
+      });
+    });
+  }
+
+  /* --- نقاط الالتقاء: أهم ما يميّز التحليل --- */
+  if (state.layers.has('confluence')) {
+    // على الرسم نكتفي بأقوى منطقتين من كل جهة؛ البقية في لوحة التحليل
+    const C = state.confluence;
+    [...C.supports.slice(0, 2), ...C.resistances.slice(0, 2)].forEach((z) => {
+      const strong = z.reliable;
+      const isSup = z.side === 'support';
+      const rgb = isSup ? '23,178,106' : '229,72,77';
+      const alpha = strong ? 0.26 : 0.14;
+      zones.push({
+        top: z.high,
+        bottom: z.low,
+        fromIndex: Math.max(0, bars.length - 90),
+        toIndex: null,
+        fill: `rgba(${rgb},${alpha})`,
+        stroke: `rgba(${rgb},${strong ? 0.85 : 0.4})`,
+        label:
+          `${strong ? '⭐ ' : ''}${isSup ? 'دعم' : 'مقاومة'} التقاء ${z.strength} · ` +
+          `${z.catCount} عوامل` +
+          (z.reaction.touches >= 2 ? ` · ارتدّ ${z.reaction.bounces}/${z.reaction.touches}` : ''),
+        labelColor: `rgba(${rgb},1)`,
+      });
     });
   }
 
@@ -698,6 +814,8 @@ function renderAnalysisPanel() {
     htf.appendChild(s);
   }
 
+  renderConfluencePanel();
+
   /* قائمة التحقق */
   const ck = $('an-checklist');
   ck.innerHTML = '';
@@ -732,9 +850,109 @@ function renderAnalysisPanel() {
     });
 }
 
+function renderConfluencePanel() {
+  const el = $('an-confluence');
+  el.innerHTML = '';
+  const zones = state.confluence.all;
+
+  if (!zones.length) {
+    const p = document.createElement('div');
+    p.className = 'muted small';
+    p.textContent = 'لا توجد نقاط التقاء معتبرة قريبة من السعر الآن.';
+    el.appendChild(p);
+    return;
+  }
+
+  zones.forEach((z) => {
+    const isSup = z.side === 'support';
+    const d = document.createElement('div');
+    d.className = 'conf-item ' + (isSup ? 'sup' : 'res');
+    d.title = 'اضغط لضبط تنبيه عند دخول هذه المنطقة';
+
+    const head = document.createElement('div');
+    head.className = 'ch';
+    const zone = document.createElement('span');
+    zone.className = 'zone';
+    zone.textContent = `${roundPrice(z.low)} – ${roundPrice(z.high)}`;
+    const verdict = document.createElement('span');
+    verdict.className = 'verdict ' + (isSup ? 'up' : 'down');
+    verdict.textContent = `${isSup ? 'دعم' : 'مقاومة'} · ${z.strength}`;
+    head.append(zone, verdict);
+
+    const meter = document.createElement('div');
+    meter.className = 'meter';
+    const fill = document.createElement('i');
+    fill.style.width = z.strength + '%';
+    fill.style.background = isSup ? 'var(--up)' : 'var(--down)';
+    meter.appendChild(fill);
+
+    const verdictLine = document.createElement('div');
+    verdictLine.className = 'small';
+    verdictLine.style.marginBottom = '4px';
+    verdictLine.textContent =
+      z.verdict + ` · ${z.distancePct >= 0 ? '+' : ''}${z.distancePct.toFixed(1)}% عن السعر`;
+
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    z.factors.forEach((f) => {
+      const s = document.createElement('span');
+      s.textContent = f.label;
+      chips.appendChild(s);
+    });
+
+    d.append(head, meter, verdictLine, chips);
+
+    if (z.reaction.touches >= 2) {
+      const r = document.createElement('div');
+      r.className = 'react';
+      r.textContent =
+        `تاريخيًا: اقترب منها السعر ${z.reaction.touches} مرات، ارتدّ ${z.reaction.bounces}` +
+        (z.reaction.breaks ? ` واخترقها ${z.reaction.breaks}` : '') +
+        ` (${Math.round(z.reaction.rate * 100)}٪ ارتداد)`;
+      d.appendChild(r);
+    }
+
+    d.onclick = async () => {
+      await Alerts.requestPermission();
+      Alerts.add({
+        symbol: state.symbol,
+        type: 'zone',
+        low: roundPrice(z.low),
+        high: roundPrice(z.high),
+      });
+      toast(`تنبيه عند دخول منطقة ${roundPrice(z.low)} – ${roundPrice(z.high)}`);
+    };
+
+    el.appendChild(d);
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* مؤشر OHLC أعلى الرسم                                                 */
 /* ------------------------------------------------------------------ */
+
+/** قيم المتوسطات عند آخر شمعة — تُعرض بجوار بيانات الشمعة */
+function maLegend(bars) {
+  const defs = [
+    ['ema20', 20, '#2bb673', 'EMA20'],
+    ['ema50', 50, '#f0a33c', 'EMA50'],
+    ['ema200', 200, '#e05c5c', 'EMA200'],
+  ].filter(([id]) => state.indicators.has(id));
+  if (!defs.length) return '';
+
+  const cl = bars.map((b) => b.close);
+  return defs
+    .map(([, period, color, label]) => {
+      if (bars.length < period) return '';
+      const v = Ind.ema(cl, period);
+      const last = v[v.length - 1];
+      if (last == null) return '';
+      return ` <span style="color:${color}">${label} <b style="color:${color}">${fmtPrice(
+        last
+      )}</b></span>`;
+    })
+    .join('');
+}
 
 cm.onCrosshair = (param) => {
   const bars = replay.active ? replay.visibleBars : state.bars;
@@ -749,7 +967,8 @@ cm.onCrosshair = (param) => {
     `<span class="${up ? 'up' : 'down'}">` +
     `O <b>${fmtPrice(bar.open)}</b> H <b>${fmtPrice(bar.high)}</b> ` +
     `L <b>${fmtPrice(bar.low)}</b> C <b>${fmtPrice(bar.close)}</b> ` +
-    `V <b>${nfVol.format(bar.volume || 0)}</b></span>`;
+    `V <b>${nfVol.format(bar.volume || 0)}</b></span>` +
+    maLegend(bars);
 };
 
 /* ------------------------------------------------------------------ */

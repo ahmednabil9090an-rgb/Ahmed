@@ -50,7 +50,8 @@ export const MARKETS = [
     items: [
       { symbol: 'GC=F', ar: 'الذهب', en: 'Gold' },
       { symbol: 'SI=F', ar: 'الفضة', en: 'Silver' },
-      { symbol: 'HG=F', ar: 'النحاس', en: 'Copper' },
+      { symbol: 'HG=F', ar: 'النحاس — كومكس', en: 'Copper COMEX' },
+      { symbol: 'COPA.L', ar: 'النحاس — بورصة لندن', en: 'WisdomTree Copper (LSE)' },
     ],
   },
 ];
@@ -101,5 +102,5 @@ export const DEFAULT_WATCHLIST = [
 /** الأدوات المسموح بها في البحث: البورصة المصرية + الذهب والفضة والنحاس */
 export function isAllowed(symbol) {
   const s = String(symbol).toUpperCase();
-  return s.endsWith('.CA') || s === '^CASE30' || ['GC=F', 'SI=F', 'HG=F'].includes(s);
+  return s.endsWith('.CA') || s === '^CASE30' || ['GC=F', 'SI=F', 'HG=F', 'COPA.L'].includes(s);
 }

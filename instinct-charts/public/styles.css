@@ -614,6 +614,78 @@ button.wide {
   border-radius: 7px;
 }
 
+.hint {
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0 0 4px;
+}
+
+.conf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.conf-item {
+  background: var(--panel-2);
+  border-radius: 9px;
+  padding: 8px 9px;
+  border-inline-start: 3px solid var(--line);
+  cursor: pointer;
+}
+.conf-item.sup {
+  border-inline-start-color: var(--up);
+}
+.conf-item.res {
+  border-inline-start-color: var(--down);
+}
+.conf-item .ch {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+.conf-item .zone {
+  font-weight: 700;
+  direction: ltr;
+  font-size: 13px;
+}
+.conf-item .verdict {
+  font-size: 11px;
+  font-weight: 600;
+}
+.conf-item .meter {
+  height: 4px;
+  background: var(--line);
+  border-radius: 4px;
+  margin: 5px 0 6px;
+  overflow: hidden;
+}
+.conf-item .meter i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+.conf-item .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.conf-item .chips span {
+  font-size: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 5px;
+  color: var(--muted);
+}
+.conf-item .react {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
 .sec-title {
   font-size: 12px;
   color: var(--muted);
