@@ -13,6 +13,7 @@ import { analyze } from './ict.js';
 import { findConfluence } from './confluence.js';
 import { analyzeLiquidity, formatActivity, compactNumber } from './liquidity.js';
 import { backtestPlan, proximityLabel, MIN_SAMPLE } from './backtest.js';
+import { scanAll, SORTS } from './scanner.js';
 import { buildPlan, roundPrice, labelBias } from './strategy.js';
 import { ChartManager, renderSubPanes, renderPriceOverlays } from './chart.js';
 import * as Ind from './indicators.js';
@@ -101,6 +102,7 @@ const state = {
   confluence: { supports: [], resistances: [], all: [] },
   liquidity: { ok: false },
   backtest: { ok: false },
+  scanRows: [],
   theme: load('theme', 'dark'),
   watchlist: load('watchlist', DEFAULT_WATCHLIST),
   lastPrice: null,
@@ -953,6 +955,146 @@ function renderAnalysisPanel() {
     });
 }
 
+/* ------------------------------------------------------------------ */
+/* ماسح الفرص                                                           */
+/* ------------------------------------------------------------------ */
+
+let scanAbort = null;
+
+function opportunityRow(r) {
+  const el = document.createElement('div');
+  el.className = 'op';
+  el.onclick = () => selectSymbol(r.symbol);
+
+  const r1 = document.createElement('div');
+  r1.className = 'r1';
+  const nm = document.createElement('span');
+  nm.className = 'nm';
+  nm.textContent = r.name;
+  const tag = document.createElement('span');
+  tag.className = 'tag ' + (r.direction === 'long' ? 'buy' : 'sell');
+  tag.textContent = r.direction === 'long' ? 'شراء' : 'بيع';
+  r1.append(nm, tag);
+
+  // جوهر الصف: الصفقة من أين إلى أين
+  const deal = document.createElement('div');
+  deal.className = 'deal';
+  const part = (cls, label, value) => {
+    const w = document.createElement('span');
+    w.className = cls;
+    const l = document.createElement('span');
+    l.className = 'lbl';
+    l.textContent = label;
+    // الأرقام تبقى بترتيبها اللاتيني داخل نص عربي
+    const v = document.createElement('bdi');
+    v.textContent = value;
+    w.append(l, v);
+    return w;
+  };
+  deal.append(
+    part('from', 'من ', `${r.entryLow} – ${r.entryHigh}`),
+    Object.assign(document.createElement('span'), { className: 'arrow', textContent: '←' }),
+    part('to', 'إلى ', `${r.targetLow} – ${r.targetHigh}`),
+    part('stop', 'وقف ', String(r.stop))
+  );
+
+  const r3 = document.createElement('div');
+  r3.className = 'r3';
+  const bits = [];
+  if (r.inside) bits.push('<b class="hot">السعر داخل المنطقة</b>');
+  else if (r.sessions != null)
+    bits.push(`يبعد <b>${Math.abs(r.distancePct).toFixed(1)}٪</b> · ${r.sessions.toFixed(1)} جلسة`);
+  bits.push(`حركة <b>${Math.abs(r.movePct).toFixed(1)}٪</b>`);
+  if (r.rr != null) bits.push(`عائد <b>${r.rr}</b>`);
+  if (r.hitRate != null) bits.push(`تحقّق <b>${Math.round(r.hitRate * 100)}٪</b>`);
+  r3.innerHTML = bits.join(' · ');
+
+  el.append(r1, deal, r3);
+  return el;
+}
+
+function renderScanList() {
+  const el = $('scan-list');
+  el.innerHTML = '';
+  const rows = state.scanRows || [];
+  const wantBuy = $('scan-buy').checked;
+  const wantSell = $('scan-sell').checked;
+  const nearOnly = $('scan-near').checked;
+
+  const filtered = rows
+    .filter((r) => (r.direction === 'long' ? wantBuy : wantSell))
+    .filter((r) => !nearOnly || r.inside || (r.sessions != null && r.sessions <= 4))
+    .sort(SORTS[$('scan-sort').value || 'nearest'].fn);
+
+  if (!filtered.length) {
+    const p = document.createElement('div');
+    p.className = 'muted small';
+    p.style.padding = '14px';
+    p.textContent = rows.length
+      ? 'لا توجد فرص تطابق هذه التصفية.'
+      : 'اضغط «افحص كل الأسهم» لعرض صفقة كل أداة في سطر.';
+    el.appendChild(p);
+    return;
+  }
+  filtered.forEach((r) => el.appendChild(opportunityRow(r)));
+}
+
+async function runScan() {
+  if (scanAbort) {
+    scanAbort.abort();
+    scanAbort = null;
+  }
+  const ctrl = new AbortController();
+  scanAbort = ctrl;
+
+  const btn = $('scan-run');
+  const prog = $('scan-progress');
+  const bar = prog.querySelector('i');
+  const txt = prog.querySelector('span');
+  btn.disabled = true;
+  btn.textContent = 'جارٍ الفحص…';
+  prog.hidden = false;
+
+  const items = MARKETS.flatMap((m) => m.items);
+  state.scanRows = [];
+
+  try {
+    const rows = await scanAll(items, (sym, tf) => api.chart(sym, tf), {
+      tf: state.tf,
+      signal: ctrl.signal,
+      onProgress: (done, total, found) => {
+        bar.style.width = (done / total) * 100 + '%';
+        txt.textContent = `${done} من ${total} · ${found} فرصة`;
+      },
+    });
+    if (ctrl.signal.aborted) return;
+    state.scanRows = rows;
+    renderScanList();
+    toast(`اكتمل الفحص: ${rows.length} فرصة من ${items.length} أداة`);
+  } catch (err) {
+    toast('تعذّر إكمال الفحص: ' + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'افحص كل الأسهم';
+    prog.hidden = true;
+    if (scanAbort === ctrl) scanAbort = null;
+  }
+}
+
+function setupScanner() {
+  const sel = $('scan-sort');
+  Object.entries(SORTS).forEach(([k, v]) => {
+    const o = document.createElement('option');
+    o.value = k;
+    o.textContent = v.label;
+    sel.appendChild(o);
+  });
+  sel.onchange = renderScanList;
+  ['scan-buy', 'scan-sell', 'scan-near'].forEach((id) => ($(id).onchange = renderScanList));
+  $('scan-run').onclick = runScan;
+  renderScanList();
+}
+
 function renderExpectationPanel() {
   const el = $('an-expect');
   el.innerHTML = '';
@@ -1604,6 +1746,7 @@ async function init() {
   renderWatchlist();
   renderAlerts();
   setupSearch();
+  setupScanner();
   wireUI();
   wireNative();
   loadSymbol();

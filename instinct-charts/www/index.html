@@ -56,12 +56,32 @@
       <aside class="sidebar" id="sidebar">
         <div class="tabs" id="side-tabs">
           <button class="tab active" data-tab="watch">المراقبة</button>
+          <button class="tab" data-tab="scan">الفرص</button>
           <button class="tab" data-tab="markets">الأسواق</button>
           <button class="tab" data-tab="alerts">التنبيهات <span id="alerts-count" class="pill"></span></button>
         </div>
 
         <div class="tab-panel" data-panel="watch">
           <div id="watchlist" class="list"></div>
+        </div>
+
+        <div class="tab-panel" data-panel="scan" hidden>
+          <div class="scan-head">
+            <div class="row">
+              <button id="scan-run" class="primary sm">افحص كل الأسهم</button>
+              <select id="scan-sort"></select>
+            </div>
+            <div class="row">
+              <label class="chk"><input type="checkbox" id="scan-buy" checked /> شراء</label>
+              <label class="chk"><input type="checkbox" id="scan-sell" checked /> بيع</label>
+              <label class="chk"><input type="checkbox" id="scan-near" /> القريبة فقط</label>
+            </div>
+            <div id="scan-progress" class="scan-progress" hidden>
+              <div class="bar"><i></i></div>
+              <span></span>
+            </div>
+          </div>
+          <div id="scan-list" class="list"></div>
         </div>
 
         <div class="tab-panel" data-panel="markets" hidden>
@@ -183,8 +203,8 @@
       <button data-view="side" data-tab="watch">
         <span class="ic">⭐</span><span>المراقبة</span>
       </button>
-      <button data-view="side" data-tab="markets">
-        <span class="ic">🧭</span><span>الأسواق</span>
+      <button data-view="side" data-tab="scan">
+        <span class="ic">🧭</span><span>الفرص</span>
       </button>
       <button data-view="plan" data-tab="">
         <span class="ic">📋</span><span>الخطة</span>

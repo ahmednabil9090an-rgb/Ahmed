@@ -152,10 +152,18 @@ export function buildPlan(bars, A, htf = {}, conf = null) {
     if ((isLong && e > price) || (!isLong && e < price)) targets.push({ price: e, label: 'امتداد 1.272' });
   }
 
+  // الهدف يجب أن يقع خلف منطقة الدخول لا داخلها: هدف بين حدّي المنطقة
+  // يعني صفقة بلا حركة، وهو ما كان يحدث حين يُرشَّح قاع قريب جدًا.
+  const beyondEntry = (p) => {
+    if (!ideal) return true;
+    return isLong ? p > ideal.top : p < ideal.bottom;
+  };
+
   // ترتيب وإزالة المكرر
   const seen = new Set();
   const picked = targets
     .filter((t) => t.price != null && isFinite(t.price))
+    .filter((t) => beyondEntry(t.price))
     .sort((a, b) => (isLong ? a.price - b.price : b.price - a.price))
     .filter((t) => {
       const k = roundPrice(t.price);
@@ -168,6 +176,12 @@ export function buildPlan(bars, A, htf = {}, conf = null) {
   // الهدف منطقة لا نقطة: السعر نادرًا ما يقف عند رقم بعينه، والخروج
   // على مدى أقرب للواقع من انتظار سعر محدد. نأخذ المدى من منطقة التقاء
   // تحتضن الهدف إن وُجدت، وإلا فهامش من المدى الحقيقي.
+  // لو لم ينجُ أي هدف فالامتداد هو البديل الطبيعي، وإلا فلا صفقة
+  if (!picked.length && A.impulse) {
+    const ext = A.impulse.ext.e1272;
+    if (beyondEntry(ext)) picked.push({ price: ext, label: 'امتداد 1.272' });
+  }
+
   const confFar = conf ? (isLong ? conf.resistances : conf.supports) : [];
   const finalTargets = picked.map((t) => {
     const zone = confFar.find((z) => t.price >= z.low && t.price <= z.high);
