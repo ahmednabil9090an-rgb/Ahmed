@@ -46,6 +46,11 @@ html,
 body {
   margin: 0;
   height: 100%;
+  /* عمود مرن بدل حساب الارتفاعات بـ calc: كل شريط يأخذ مقاسه والباقي
+     للرسم. الحساب اليدوي كان يترك فراغًا حين يُغلق شريط، ويتجاوز
+     الشاشة في الوضع الأفقي. */
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   color: var(--text);
   font-family: 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -235,7 +240,8 @@ button.wide {
 .layout {
   display: grid;
   grid-template-columns: 250px 1fr 310px;
-  height: calc(100% - var(--header));
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .sidebar,
@@ -1292,17 +1298,10 @@ button.wide {
   display: none;
 }
 
+/* ============ تخطيط الهاتف واللوح والهاتف أفقيًا ============ */
+/* الحد 1100 لا 820: بينهما كان العرض بعمودين بلا شريط تنقل، فلا سبيل
+   إلى لوحة الخطة إطلاقًا — وهي الحالة التي يقع فيها الهاتف أفقيًا. */
 @media (max-width: 1100px) {
-  .layout {
-    grid-template-columns: 220px 1fr;
-  }
-  .analysis {
-    display: none;
-  }
-}
-
-/* ============ تخطيط الهاتف ============ */
-@media (max-width: 820px) {
   :root {
     --header: 46px;
     --nav: 58px;
@@ -1342,8 +1341,6 @@ button.wide {
   /* عمود واحد: تظهر لوحة واحدة فقط حسب التبويب السفلي */
   .layout {
     grid-template-columns: 1fr;
-    height: calc(100% - var(--header) - env(safe-area-inset-top));
-    padding-bottom: calc(var(--nav) + env(safe-area-inset-bottom));
   }
   .sidebar,
   .chart-col,
@@ -1432,9 +1429,7 @@ button.wide {
   .bottom-nav {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    position: fixed;
-    inset-inline: 0;
-    bottom: 0;
+    flex: none;
     z-index: 85;
     background: var(--panel);
     border-top: 1px solid var(--line);
@@ -1488,10 +1483,13 @@ button.wide {
     inset-inline: 10px;
     bottom: calc(var(--nav) + env(safe-area-inset-bottom) + 10px);
   }
+  .snapshot-note {
+    flex: none;
+  }
 }
 
 /* على الشاشات الواسعة لا وجود لشريط الفريمات الأفقي */
-@media (min-width: 821px) {
+@media (min-width: 1101px) {
   .tf-strip {
     display: none;
   }
@@ -1523,8 +1521,6 @@ body.chart-max .snapshot-note {
 }
 body.chart-max .layout {
   grid-template-columns: 1fr;
-  height: 100%;
-  padding-bottom: 0;
 }
 body.chart-max .chart-col {
   display: flex !important;
@@ -1534,4 +1530,89 @@ body.chart-max .symbol-head {
 }
 body.chart-max .chart-area {
   padding-bottom: calc(4px + env(safe-area-inset-bottom));
+}
+
+
+/* ============ شاشة قصيرة (الهاتف أفقيًا) ============ */
+@media (max-height: 520px) {
+  :root {
+    --header: 40px;
+    --nav: 44px;
+  }
+  .topbar {
+    gap: 8px;
+  }
+  .brand-text {
+    display: none;
+  }
+  .symbol-head {
+    padding: 2px 12px 0;
+    flex-wrap: nowrap;
+  }
+  .sym-main h1 {
+    font-size: 14px;
+  }
+  #price {
+    font-size: 16px;
+  }
+  .tf-strip {
+    padding: 3px 10px 0;
+  }
+  .tf-strip button {
+    padding: 3px 10px;
+    font-size: 11.5px;
+  }
+  .chart-price {
+    min-height: 120px;
+  }
+  .chart-area {
+    padding: 0 4px 2px;
+  }
+  .snapshot-note {
+    padding: 3px 24px 3px 10px;
+    font-size: 10px;
+  }
+  .bottom-nav button {
+    height: var(--nav);
+    font-size: 9.5px;
+  }
+  .bottom-nav button .ic {
+    font-size: 14px;
+  }
+  .data-note {
+    margin: 1px 12px 2px;
+    padding: 3px 8px;
+  }
+}
+
+
+/* الهاتف أفقيًا: عريض وقصير — فالأفقي عندنا متّسع والرأسي ضيق.
+   ننقل الفريمات إلى الشريط العلوي ونستغني عن صفّها المستقل. */
+@media (max-height: 520px) and (min-width: 600px) {
+  .tf-strip {
+    display: none;
+  }
+  .tf-group {
+    display: flex;
+  }
+  .tf-group button {
+    padding: 4px 7px;
+    font-size: 11.5px;
+  }
+  .search-wrap {
+    flex: 0 1 150px;
+  }
+  .snapshot-note {
+    display: none;
+  }
+  .symbol-head {
+    padding: 1px 12px 0;
+  }
+  .sym-main h1 {
+    font-size: 13px;
+    max-width: 30vw;
+  }
+  #price {
+    font-size: 15px;
+  }
 }

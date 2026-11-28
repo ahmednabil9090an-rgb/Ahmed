@@ -106,7 +106,12 @@ export class ChartManager {
     const redraw = () => this.drawOverlay();
     this.priceChart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
     this.priceChart.subscribeCrosshairMove(() => {}); // يبقي التفاعل سلسًا
+    this._lastWidth = 0;
     this._ro = new ResizeObserver(() => {
+      const w = this.containers.price.clientWidth;
+      // الحاوية اتّسعت بعد أن كانت شبه معدومة: المدى المحفوظ لم يعد صالحًا
+      if (this._pendingFocus && w >= 120 && this._lastWidth < 120) this._applyFocus();
+      this._lastWidth = w;
       this._sizeOverlay();
       this.drawOverlay();
     });
@@ -320,12 +325,30 @@ export class ChartManager {
     this.candles.setData(data);
     if (range) {
       this.priceChart.timeScale().setVisibleLogicalRange(range);
+      this._pendingFocus = null;
     } else if (focusLast && bars.length > focusLast) {
-      this.priceChart
-        .timeScale()
-        .setVisibleLogicalRange({ from: bars.length - focusLast, to: bars.length + 4 });
+      this._pendingFocus = focusLast;
+      this._applyFocus();
     } else {
       this.priceChart.timeScale().fitContent();
+      this._pendingFocus = null;
+    }
+  }
+
+  /**
+   * يضبط المدى المعروض. تُستدعى أيضًا بعد تمدّد الحاوية: لو ضُبط المدى
+   * والحاوية ما زالت بلا عرض (عند أول رسم أو بعد دوران الجهاز) تهبط
+   * مسافة الشمعة إلى حدّها الأدنى، فإذا اتّسعت الحاوية بعدها امتد المدى
+   * إلى مئات الشموع المتكدّسة في طرف الشاشة.
+   */
+  _applyFocus(retries = 0) {
+    const f = this._pendingFocus;
+    if (!f || this.bars.length <= f) return;
+    this.priceChart
+      .timeScale()
+      .setVisibleLogicalRange({ from: this.bars.length - f, to: this.bars.length + 4 });
+    if (this.containers.price.clientWidth < 120 && retries < 20) {
+      requestAnimationFrame(() => this._applyFocus(retries + 1));
     }
   }
 
@@ -473,8 +496,11 @@ export function renderSubPanes(cm, bars, active) {
 
   // على الهاتف المساحة ضيقة: نكتفي بأول نافذتين فرعيتين وبارتفاع أقل،
   // حتى تبقى نافذة السعر هي الأكبر.
-  const narrow = window.innerWidth <= 820;
-  const maxPanes = narrow ? (window.innerHeight >= 760 ? 2 : 1) : 4;
+  const narrow = window.innerWidth <= 1100;
+  // الارتفاع هو ما يحدّد عدد النوافذ، لا العرض: الهاتف أفقيًا شاشة
+  // عريضة لكنها قصيرة، وحشوها بنوافذ يخنق الرسم.
+  const vh = window.innerHeight;
+  const maxPanes = vh < 520 ? 0 : narrow ? (vh >= 760 ? 2 : 1) : 4;
   const order = ['liquidity', 'obv', 'mfi', 'volume', 'rsi', 'macd', 'wt'];
   const shown = new Set(order.filter((id) => active.has(id)).slice(0, maxPanes));
   const h = (full) => (narrow ? 74 : full);

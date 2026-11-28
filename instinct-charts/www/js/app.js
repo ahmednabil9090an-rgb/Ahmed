@@ -53,8 +53,16 @@ const LAYERS = [
 const INTRADAY_TFS = new Set(['1m', '5m', '15m', '30m', '1h', '4h']);
 
 /** شاشة ضيقة: نعرض عددًا أقل من الشموع والطبقات حتى يبقى الرسم مقروءًا */
-const isCompact = () => window.innerWidth <= 820;
-const focusBars = () => (isCompact() ? 45 : 120);
+const isCompact = () => window.innerWidth <= 1100;
+/** عدد الشموع المعروضة ابتداءً — يُشتقّ من عرض الرسم كي يبقى عرض الشمعة
+ *  ثابتًا تقريبًا في كل المقاسات. رقم ثابت كان يكدّس الشموع في طرف الشاشة
+ *  العريضة ويضغطها في الضيقة. */
+const focusBars = () => {
+  const el = document.getElementById('chart-price');
+  const w = (el && el.clientWidth) || window.innerWidth || 800;
+  const perBar = isCompact() ? 9 : 11;
+  return Math.max(35, Math.min(180, Math.round(w / perBar)));
+};
 
 /**
  * يقرأ مجموعة محفوظة، ويفعّل تلقائيًا أي خيار جديد أُضيف للتطبيق بعد آخر
@@ -1766,6 +1774,28 @@ function wireUI() {
 /* التشغيل                                                              */
 /* ------------------------------------------------------------------ */
 
+/** عند الدوران يتغيّر العرض كثيرًا، فنعيد ضبط عدد الشموع ونعيد بناء
+ *  النوافذ الفرعية (عددها يتبع الارتفاع). */
+function wireResize() {
+  let lastW = window.innerWidth;
+  let t = null;
+  const onResize = () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      const w = window.innerWidth;
+      const changed = Math.abs(w - lastW) > 60;
+      lastW = w;
+      const bars = replay.active ? replay.visibleBars : state.bars;
+      if (!bars.length) return;
+      if (changed) cm.setBars(bars, { focusLast: focusBars() });
+      drawIndicators();
+      drawAnalysisLayers();
+    }, 220);
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+}
+
 function wireNative() {
   Native.applyStatusBar(state.theme);
 
@@ -1806,6 +1836,9 @@ function wireNative() {
 }
 
 async function init() {
+  // منفذ تشخيص: يسهّل فحص حالة الرسم من أدوات المطوّر
+  window.instinct = { cm, state, focusBars };
+
   // على الهاتف نستعيد التفضيلات من تخزين النظام قبل قراءة أي إعداد
   await Native.hydrateStorage();
   if (Native.isNative) {
@@ -1829,6 +1862,7 @@ async function init() {
   setupScanner();
   wireUI();
   wireNative();
+  wireResize();
   loadSymbol();
   refreshQuotes();
 
